@@ -1,0 +1,16 @@
+[package]
+name = "chant"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+woollib = { git = "https://github.com/mentalblood0/woollib" }
+anyhow = { version = "1.0.100", features = ["std", "backtrace"] }
+fallible-iterator = { version = "0.3", features = ["std"] }
+frankenstein = { version = "0.47", features = ["client-ureq"] }
+serde = { version = "1.0", features = ["derive"] }
+serde-saphyr = { git = "https://github.com/bourumir-wyngs/serde-saphyr" }
+
+[dev-dependencies]
+nanorand = "0.8"
+pretty_assertions = "1.4"
