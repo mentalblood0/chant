@@ -7,7 +7,7 @@ use frankenstein::TelegramApi;
 use trove::PathSegment;
 use woollib::sweater::{Sweater, SweaterConfig};
 
-use crate::read_transaction::ReadTransaction;
+use crate::read_transaction::{ReadTransaction, ReadTransactionMethods};
 use crate::user::User;
 use crate::write_transaction::WriteTransaction;
 
@@ -89,8 +89,19 @@ impl Chant {
 
             for update in updates.result {
                 if let frankenstein::updates::UpdateContent::Message(message) = &update.content {
-                    let user_id = User::id_from_telegram_id(&message.chat.id.to_string());
+                    let user_id = User::id_from_telegram_id(message.chat.id);
                     if let Some(ref message_text) = message.text {
+                        self.lock_all_and_write(|transaction| {
+                            transaction.queue_commands(user_id.clone(), &message_text)
+                        })?;
+                        self.lock_all_writes_and_read(|transaction| {
+                            for cantor_user_telegram_id in
+                                transaction.get_cantors_telegram_user_ids()?
+                            {
+                                self.forward_message(message.message_id, cantor_user_telegram_id)?;
+                            }
+                            Ok(())
+                        })?;
                         self.lock_all_and_write(|transaction| {
                             transaction.queue_commands(user_id.clone(), &message_text)
                         })?;
@@ -127,17 +138,28 @@ impl Chant {
         message: &frankenstein::types::Message,
         reaction_emoji_str: &str,
     ) -> Result<()> {
-        let params = frankenstein::methods::SetMessageReactionParams::builder()
-            .chat_id(message.chat.id)
-            .message_id(message.message_id)
-            .reaction(vec![frankenstein::types::ReactionType::Emoji(
-                frankenstein::types::ReactionTypeEmoji::builder()
-                    .emoji(reaction_emoji_str.to_string())
-                    .build(),
-            )])
-            .build();
+        self.bot.set_message_reaction(
+            &frankenstein::methods::SetMessageReactionParams::builder()
+                .chat_id(message.chat.id)
+                .message_id(message.message_id)
+                .reaction(vec![frankenstein::types::ReactionType::Emoji(
+                    frankenstein::types::ReactionTypeEmoji::builder()
+                        .emoji(reaction_emoji_str.to_string())
+                        .build(),
+                )])
+                .build(),
+        )?;
+        Ok(())
+    }
 
-        self.bot.set_message_reaction(&params)?;
+    pub fn forward_message(&self, message_id: i32, to_user_id: i64) -> Result<()> {
+        self.bot.forward_message(
+            &frankenstein::methods::ForwardMessageParams::builder()
+                .chat_id(to_user_id)
+                .from_chat_id(to_user_id)
+                .message_id(message_id)
+                .build(),
+        )?;
         Ok(())
     }
 }

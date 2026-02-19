@@ -5,6 +5,7 @@ use fallible_iterator::FallibleIterator;
 
 use crate::define_read_methods;
 use crate::read_transaction::ReadTransactionMethods;
+use crate::user::Role;
 use crate::user::User;
 
 pub struct WriteTransaction<'a, 'b, 'c, 'd, 'e> {
@@ -41,7 +42,7 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
         Ok(())
     }
 
-    pub fn execute_commands_queue(&mut self, user_telegram_id: &str) -> Result<()> {
+    pub fn execute_commands_queue(&mut self, user_telegram_id: i64) -> Result<()> {
         let user_id = self
             .get_user_id_by_telegram_id(user_telegram_id)?
             .with_context(|| {
