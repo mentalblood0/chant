@@ -4,6 +4,7 @@ pub mod write_transaction;
 
 use anyhow::{Context, Result};
 use frankenstein::TelegramApi;
+use trove::PathSegment;
 use woollib::sweater::{Sweater, SweaterConfig};
 
 use crate::read_transaction::ReadTransaction;
@@ -88,9 +89,10 @@ impl Chant {
 
             for update in updates.result {
                 if let frankenstein::updates::UpdateContent::Message(message) = &update.content {
+                    let user_id = User::id_from_telegram_id(&message.chat.id.to_string());
                     if let Some(ref message_text) = message.text {
                         self.lock_all_and_write(|transaction| {
-                            transaction.queue_commands(&message_text)
+                            transaction.queue_commands(user_id.clone(), &message_text)
                         })?;
                     } else if let Some(file_id) = Self::get_file_id(message) {
                         if let Ok(file) = self.bot.get_file(
@@ -108,7 +110,7 @@ impl Chant {
                                     .into_body()
                                     .read_to_string()?;
                                 self.lock_all_and_write(|transaction| {
-                                    transaction.queue_commands(&file_text)
+                                    transaction.queue_commands(user_id.clone(), &file_text)
                                 })?;
                                 self.set_reaction(message, "✍️")?;
                             }

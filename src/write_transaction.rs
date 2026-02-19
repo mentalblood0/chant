@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use fallible_iterator::FallibleIterator;
 
 use crate::define_read_methods;
@@ -20,7 +20,7 @@ impl<'a, 'b, 'c, 'd, 'e> ReadTransactionMethods<'a> for &mut WriteTransaction<'a
 }
 
 impl WriteTransaction<'_, '_, '_, '_, '_> {
-    pub fn queue_commands(&mut self, text: &str) -> Result<()> {
+    pub fn queue_commands(&mut self, user_id: trove::ObjectId, text: &str) -> Result<()> {
         let commands = woollib::commands::CommandsIterator::new(
             text,
             &self
@@ -33,9 +33,34 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
             },
         )
         .collect::<Vec<_>>()?;
-        for command in &commands {
-            println!("executing {command:?}");
-            self.sweater_transaction.execute_command(&command)?;
+        self.sweater_transaction.chest_transaction.update(
+            user_id,
+            trove::path_segments!("commands_queue"),
+            serde_json::to_value(commands)?,
+        )?;
+        Ok(())
+    }
+
+    pub fn execute_commands_queue(&mut self, user_telegram_id: &str) -> Result<()> {
+        let user_id = self
+            .get_user_id_by_telegram_id(user_telegram_id)?
+            .with_context(|| {
+                "Can not execute commands queue for user with telegram id {telegram_id:?} as there \
+                 is no such user"
+            })?;
+        if let Some(commands_json_value) = self
+            .sweater_transaction
+            .chest_transaction
+            .get(&user_id, &trove::path_segments!("commands_queue"))?
+        {
+            let commands =
+                serde_json::from_value::<Vec<woollib::commands::Command>>(commands_json_value)?;
+            for command in commands {
+                self.sweater_transaction.execute_command(&command)?;
+            }
+            self.sweater_transaction
+                .chest_transaction
+                .remove(&user_id, &trove::path_segments!("commands_queue"))?;
         }
         Ok(())
     }

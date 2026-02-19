@@ -14,10 +14,14 @@ pub struct User {
 }
 
 impl User {
-    pub fn id(&self) -> trove::ObjectId {
-        let source: Vec<u8> = self.telegram_id.bytes().collect();
+    pub fn id_from_telegram_id(telegram_id: &str) -> trove::ObjectId {
+        let source: Vec<u8> = telegram_id.bytes().collect();
         trove::ObjectId {
             value: xxhash_rust::xxh3::xxh3_128(&source).to_be_bytes(),
         }
+    }
+
+    pub fn id(&self) -> trove::ObjectId {
+        Self::id_from_telegram_id(&self.telegram_id)
     }
 }
