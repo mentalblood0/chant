@@ -41,11 +41,12 @@ dependencies = [
 
 [[package]]
 name = "annotate-snippets"
-version = "0.12.11"
+version = "0.12.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16e4850548ff4a25a77ce3bda7241874e17fb702ea551f0cc62a2dbe052f1272"
+checksum = "c86cd1c51b95d71dde52bca69ed225008f6ff4c8cc825b08042aa1ef823e1980"
 dependencies = [
  "anstyle",
+ "memchr",
  "unicode-width",
 ]
 
@@ -150,9 +151,9 @@ dependencies = [
 
 [[package]]
 name = "bumpalo"
-version = "3.19.1"
+version = "3.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5dd9dc738b7a8311c7ade152424974d8115f2cdad61e8dab8dac9f2362298510"
+checksum = "5c6f81257d10a0f602a294ae4182251151ff97dbb504ef9afcdda4a64b24d9b4"
 
 [[package]]
 name = "bytes"
@@ -268,7 +269,7 @@ checksum = "56254986775e3233ffa9c4d7d3faaf6d36a2c09d30b20687e9f88bc8bafc16c8"
 [[package]]
 name = "dream"
 version = "0.1.0"
-source = "git+https://github.com/mentalblood0/dream#5d0ae0cf56a7507504e9b73bcddc155bb74e81c8"
+source = "git+https://github.com/mentalblood0/dream#88eeb66487fa04937d1c130f6c23bd57c47a177d"
 dependencies = [
  "anyhow",
  "bincode",
@@ -493,7 +494,7 @@ dependencies = [
 [[package]]
 name = "lawn"
 version = "0.1.0"
-source = "git+https://github.com/mentalblood0/lawn#dbe6625a4d22f7e73161119cadd8920cc71dfb63"
+source = "git+https://github.com/mentalblood0/lawn#b4bb8b0773a0cacebf154e4b717ca74478ab5421"
 dependencies = [
  "anyhow",
  "bincode",
@@ -897,7 +898,7 @@ dependencies = [
 [[package]]
 name = "serde-saphyr"
 version = "0.0.19"
-source = "git+https://github.com/bourumir-wyngs/serde-saphyr#592f3f17ae609d756b8802c2ccdf6232dd771afc"
+source = "git+https://github.com/bourumir-wyngs/serde-saphyr#c5e01fcf23745fb0679c9c258a78733f98a244bb"
 dependencies = [
  "ahash",
  "annotate-snippets",
@@ -1012,7 +1013,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0136791f7c95b1f6dd99f9cc786b91bb81c3800b639b3478e561ddb7be95e5f1"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.1",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
@@ -1041,7 +1042,7 @@ dependencies = [
 [[package]]
 name = "trove"
 version = "0.1.0"
-source = "git+https://github.com/mentalblood0/trove#42e3e1c1d70f9ef8f6392b2bec5f789e38edd4e3"
+source = "git+https://github.com/mentalblood0/trove#8c901073be05b7e9ead2fe25f53d1308aafd5061"
 dependencies = [
  "anyhow",
  "base64",
@@ -1444,7 +1445,7 @@ dependencies = [
 [[package]]
 name = "woollib"
 version = "0.1.0"
-source = "git+https://github.com/mentalblood0/woollib#6db7a31c9363ab51d20b265ff78ea8e7522a74c9"
+source = "git+https://github.com/mentalblood0/woollib#18cd76c0964110ac47db2da66dd67a357749e76e"
 dependencies = [
  "anyhow",
  "bincode",

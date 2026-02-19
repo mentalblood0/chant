@@ -39,9 +39,8 @@ impl Chant {
     }
 
     fn queue_commands(&mut self, text: &str) -> Result<()> {
-        let mut commands = vec![];
-        self.sweater.lock_all_writes_and_read(|transaction| {
-            commands = CommandsIterator::new(
+        let commands = self.sweater.lock_all_writes_and_read(|transaction| {
+            CommandsIterator::new(
                 text,
                 &transaction.sweater_config.supported_relations_kinds,
                 &mut woollib::aliases_resolver::AliasesResolver {
@@ -49,8 +48,7 @@ impl Chant {
                     known_aliases: BTreeMap::new(),
                 },
             )
-            .collect::<Vec<_>>()?;
-            Ok(())
+            .collect::<Vec<_>>()
         })?;
         self.sweater.lock_all_and_write(|transaction| {
             for command in &commands {
