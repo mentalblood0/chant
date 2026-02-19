@@ -90,22 +90,9 @@ impl Chant {
             for update in updates.result {
                 if let frankenstein::updates::UpdateContent::Message(message) = &update.content {
                     let user_id = User::id_from_telegram_id(message.chat.id);
+                    let mut text_option = None;
                     if let Some(ref message_text) = message.text {
-                        self.lock_all_and_write(|transaction| {
-                            transaction.queue_commands(user_id.clone(), &message_text)
-                        })?;
-                        self.lock_all_writes_and_read(|transaction| {
-                            for cantor_user_telegram_id in
-                                transaction.get_cantors_telegram_user_ids()?
-                            {
-                                self.forward_message(message.message_id, cantor_user_telegram_id)?;
-                            }
-                            Ok(())
-                        })?;
-                        self.lock_all_and_write(|transaction| {
-                            transaction.queue_commands(user_id.clone(), &message_text)
-                        })?;
-                        self.set_reaction(message, "✍️")?;
+                        text_option = Some(message_text.clone());
                     } else if let Some(file_id) = Self::get_file_id(message) {
                         if let Ok(file) = self.bot.get_file(
                             &frankenstein::methods::GetFileParams::builder()
@@ -117,27 +104,31 @@ impl Chant {
                                     "https://api.telegram.org/file/bot{}/{}",
                                     self.config.token, file_path
                                 );
-                                let file_text = frankenstein::ureq::get(&url)
-                                    .call()?
-                                    .into_body()
-                                    .read_to_string()?;
-                                self.lock_all_and_write(|transaction| {
-                                    transaction.queue_commands(user_id.clone(), &file_text)
-                                })?;
-                                self.lock_all_writes_and_read(|transaction| {
-                                    for cantor_user_telegram_id in
-                                        transaction.get_cantors_telegram_user_ids()?
-                                    {
-                                        self.forward_message(
-                                            message.message_id,
-                                            cantor_user_telegram_id,
-                                        )?;
-                                    }
-                                    Ok(())
-                                })?;
-                                self.set_reaction(message, "✍️")?;
+                                text_option = Some(
+                                    frankenstein::ureq::get(&url)
+                                        .call()?
+                                        .into_body()
+                                        .read_to_string()?,
+                                );
                             }
                         }
+                    };
+                    if let Some(text) = text_option {
+                        self.lock_all_and_write(|transaction| {
+                            transaction.queue_commands(user_id.clone(), &text)
+                        })?;
+                        self.lock_all_writes_and_read(|transaction| {
+                            for cantor_user_telegram_id in
+                                transaction.get_cantors_telegram_user_ids()?
+                            {
+                                self.forward_message(message.message_id, cantor_user_telegram_id)?;
+                            }
+                            Ok(())
+                        })?;
+                        self.lock_all_and_write(|transaction| {
+                            transaction.queue_commands(user_id.clone(), &text)
+                        })?;
+                        self.set_reaction(message, "✍️")?;
                     }
                 }
                 offset = update.update_id as i64 + 1;
