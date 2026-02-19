@@ -38,6 +38,30 @@ impl Chant {
         None
     }
 
+    fn queue_commands(&mut self, text: &str) -> Result<()> {
+        let mut commands = vec![];
+        self.sweater.lock_all_writes_and_read(|transaction| {
+            commands = CommandsIterator::new(
+                text,
+                &transaction.sweater_config.supported_relations_kinds,
+                &mut woollib::aliases_resolver::AliasesResolver {
+                    read_able_transaction: &transaction,
+                    known_aliases: BTreeMap::new(),
+                },
+            )
+            .collect::<Vec<_>>()?;
+            Ok(())
+        })?;
+        self.sweater.lock_all_and_write(|transaction| {
+            for command in &commands {
+                println!("executing {command:?}");
+                transaction.execute_command(&command)?;
+            }
+            Ok(())
+        })?;
+        Ok(())
+    }
+
     fn run(&mut self) -> Result<()> {
         let mut offset: i64 = 0;
 
@@ -51,7 +75,9 @@ impl Chant {
 
             for update in updates.result {
                 if let frankenstein::updates::UpdateContent::Message(message) = &update.content {
-                    if let Some(file_id) = Self::get_file_id(message) {
+                    if let Some(ref message_text) = message.text {
+                        self.queue_commands(message_text)?;
+                    } else if let Some(file_id) = Self::get_file_id(message) {
                         if let Ok(file) = self.bot.get_file(
                             &frankenstein::methods::GetFileParams::builder()
                                 .file_id(file_id)
@@ -66,27 +92,7 @@ impl Chant {
                                     .call()?
                                     .into_body()
                                     .read_to_string()?;
-                                let mut commands = vec![];
-                                self.sweater.lock_all_writes_and_read(|transaction| {
-                                    commands = CommandsIterator::new(
-                                        &file_text,
-                                        &transaction.sweater_config.supported_relations_kinds,
-                                        &mut woollib::aliases_resolver::AliasesResolver {
-                                            read_able_transaction: &transaction,
-                                            known_aliases: BTreeMap::new(),
-                                        },
-                                    )
-                                    .collect::<Vec<_>>()?;
-                                    Ok(())
-                                })?;
-                                self.sweater.lock_all_and_write(|transaction| {
-                                    for command in &commands {
-                                        println!("executing {command:?}");
-                                        transaction.execute_command(&command)?;
-                                    }
-                                    Ok(())
-                                })?;
-
+                                self.queue_commands(&file_text)?;
                                 self.set_reaction(message, "✍️")?;
                             }
                         }
