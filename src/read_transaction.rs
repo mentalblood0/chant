@@ -39,13 +39,12 @@ macro_rules! define_read_methods {
                     None,
                 )?
                 .map(|user_id| {
-                    Ok(serde_json::from_value::<String>(
+                    Ok(serde_json::from_value::<i64>(
                         self.sweater_transaction
                             .chest_transaction
                             .get(&user_id, &trove::path_segments!("telegram_id"))?
                             .unwrap(),
-                    )?
-                    .parse::<i64>()?)
+                    )?)
                 })
                 .collect()
         }
