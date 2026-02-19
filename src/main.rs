@@ -1,33 +1,70 @@
+pub mod read_transaction;
+pub mod user;
+pub mod write_transaction;
+
 use anyhow::{Context, Result};
-use fallible_iterator::FallibleIterator;
 use frankenstein::TelegramApi;
-use std::collections::BTreeMap;
-use woollib::commands::CommandsIterator;
 use woollib::sweater::{Sweater, SweaterConfig};
 
+use crate::read_transaction::ReadTransaction;
+use crate::user::User;
+use crate::write_transaction::WriteTransaction;
+
 #[derive(serde::Deserialize)]
-struct ChantConfig {
-    sweater: SweaterConfig,
-    token: String,
+pub struct ChantConfig {
+    pub sweater: SweaterConfig,
+    pub token: String,
+    pub users: Vec<User>,
 }
 
-struct Chant {
-    sweater: Sweater,
-    bot: frankenstein::client_ureq::Bot,
-    token: String,
+pub struct Chant {
+    pub sweater: Sweater,
+    pub bot: frankenstein::client_ureq::Bot,
+    pub config: ChantConfig,
 }
 
 impl Chant {
-    fn new(config: ChantConfig) -> Result<Self> {
+    pub fn new(config: ChantConfig) -> Result<Self> {
         let token = config.token.clone();
-        Ok(Self {
-            sweater: Sweater::new(config.sweater)?,
+        let users_to_add = config.users.clone();
+        let mut result = Self {
+            sweater: Sweater::new(config.sweater.clone())?,
             bot: frankenstein::client_ureq::Bot::new(&token),
-            token,
-        })
+            config,
+        };
+        result.lock_all_and_write(|transaction| transaction.add_users(&users_to_add))?;
+        Ok(result)
     }
 
-    fn get_file_id(message: &frankenstein::types::Message) -> Option<String> {
+    pub fn lock_all_and_write<'a, F, R>(&'a mut self, mut f: F) -> Result<R>
+    where
+        F: FnMut(&mut WriteTransaction<'_, '_, '_, '_, '_>) -> Result<R>,
+    {
+        self.sweater
+            .lock_all_and_write(|sweater_write_transaction| {
+                f(&mut WriteTransaction {
+                    sweater_transaction: sweater_write_transaction,
+                })
+            })
+            .with_context(|| "Can not lock chest and initiate write transaction")
+    }
+
+    pub fn lock_all_writes_and_read<F, R>(&self, mut f: F) -> Result<R>
+    where
+        F: FnMut(ReadTransaction) -> Result<R>,
+    {
+        self.sweater
+            .lock_all_writes_and_read(|sweater_read_transaction| {
+                f(ReadTransaction {
+                    sweater_transaction: &sweater_read_transaction,
+                })
+            })
+            .with_context(|| {
+                "Can not lock all write operations on chest and initiate read transaction"
+            })
+    }
+
+    pub fn get_file_id(message: &frankenstein::types::Message) -> Option<String> {
         if let Some(ref document) = message.document {
             if let Some(ref file_name) = document.file_name {
                 if file_name.ends_with(".txt") {
@@ -38,29 +75,7 @@ impl Chant {
         None
     }
 
-    fn queue_commands(&mut self, text: &str) -> Result<()> {
-        let commands = self.sweater.lock_all_writes_and_read(|transaction| {
-            CommandsIterator::new(
-                text,
-                &transaction.sweater_config.supported_relations_kinds,
-                &mut woollib::aliases_resolver::AliasesResolver {
-                    read_able_transaction: &transaction,
-                    known_aliases: BTreeMap::new(),
-                },
-            )
-            .collect::<Vec<_>>()
-        })?;
-        self.sweater.lock_all_and_write(|transaction| {
-            for command in &commands {
-                println!("executing {command:?}");
-                transaction.execute_command(&command)?;
-            }
-            Ok(())
-        })?;
-        Ok(())
-    }
-
-    fn run(&mut self) -> Result<()> {
+    pub fn run(&mut self) -> Result<()> {
         let mut offset: i64 = 0;
 
         loop {
@@ -74,7 +89,9 @@ impl Chant {
             for update in updates.result {
                 if let frankenstein::updates::UpdateContent::Message(message) = &update.content {
                     if let Some(ref message_text) = message.text {
-                        self.queue_commands(message_text)?;
+                        self.lock_all_and_write(|transaction| {
+                            transaction.queue_commands(&message_text)
+                        })?;
                     } else if let Some(file_id) = Self::get_file_id(message) {
                         if let Ok(file) = self.bot.get_file(
                             &frankenstein::methods::GetFileParams::builder()
@@ -84,13 +101,15 @@ impl Chant {
                             if let Some(file_path) = file.result.file_path {
                                 let url = format!(
                                     "https://api.telegram.org/file/bot{}/{}",
-                                    self.token, file_path
+                                    self.config.token, file_path
                                 );
                                 let file_text = frankenstein::ureq::get(&url)
                                     .call()?
                                     .into_body()
                                     .read_to_string()?;
-                                self.queue_commands(&file_text)?;
+                                self.lock_all_and_write(|transaction| {
+                                    transaction.queue_commands(&file_text)
+                                })?;
                                 self.set_reaction(message, "✍️")?;
                             }
                         }
@@ -101,7 +120,7 @@ impl Chant {
         }
     }
 
-    fn set_reaction(
+    pub fn set_reaction(
         &self,
         message: &frankenstein::types::Message,
         reaction_emoji_str: &str,

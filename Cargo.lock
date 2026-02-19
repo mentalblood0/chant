@@ -188,7 +188,10 @@ dependencies = [
  "pretty_assertions",
  "serde",
  "serde-saphyr",
+ "serde_json",
+ "trove",
  "woollib",
+ "xxhash-rust",
 ]
 
 [[package]]

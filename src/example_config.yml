@@ -1,4 +1,7 @@
 token: insert your telegram bot token here
+users:
+  - telegram_id: 810722109
+    role: Cantor
 sweater:
   supported_relations_kinds:
     - answers
