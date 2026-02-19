@@ -105,6 +105,7 @@ impl Chant {
                         self.lock_all_and_write(|transaction| {
                             transaction.queue_commands(user_id.clone(), &message_text)
                         })?;
+                        self.set_reaction(message, "✍️")?;
                     } else if let Some(file_id) = Self::get_file_id(message) {
                         if let Ok(file) = self.bot.get_file(
                             &frankenstein::methods::GetFileParams::builder()
@@ -122,6 +123,17 @@ impl Chant {
                                     .read_to_string()?;
                                 self.lock_all_and_write(|transaction| {
                                     transaction.queue_commands(user_id.clone(), &file_text)
+                                })?;
+                                self.lock_all_writes_and_read(|transaction| {
+                                    for cantor_user_telegram_id in
+                                        transaction.get_cantors_telegram_user_ids()?
+                                    {
+                                        self.forward_message(
+                                            message.message_id,
+                                            cantor_user_telegram_id,
+                                        )?;
+                                    }
+                                    Ok(())
                                 })?;
                                 self.set_reaction(message, "✍️")?;
                             }
