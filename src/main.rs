@@ -5,21 +5,25 @@ pub mod write_transaction;
 use anyhow::{Context, Result};
 use frankenstein::TelegramApi;
 use trove::PathSegment;
-use woollib::sweater::{Sweater, SweaterConfig};
 
 use crate::read_transaction::{ReadTransaction, ReadTransactionMethods};
 use crate::user::User;
 use crate::write_transaction::WriteTransaction;
 
+wool::define_sweater!(sweater(
+    users
+) use {
+});
+
 #[derive(serde::Deserialize)]
 pub struct ChantConfig {
-    pub sweater: SweaterConfig,
+    pub sweater: sweater::SweaterConfig,
     pub token: String,
     pub users: Vec<User>,
 }
 
 pub struct Chant {
-    pub sweater: Sweater,
+    pub sweater: sweater::Sweater,
     pub bot: frankenstein::client_ureq::Bot,
     pub config: ChantConfig,
 }
@@ -29,7 +33,7 @@ impl Chant {
         let token = config.token.clone();
         let users_to_add = config.users.clone();
         let mut result = Self {
-            sweater: Sweater::new(config.sweater.clone())?,
+            sweater: sweater::Sweater::new(config.sweater.clone())?,
             bot: frankenstein::client_ureq::Bot::new(&token),
             config,
         };

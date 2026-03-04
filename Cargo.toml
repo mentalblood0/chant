@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 trove = { git = "https://github.com/mentalblood0/trove" }
-woollib = { git = "https://github.com/mentalblood0/woollib" }
+wool = { git = "https://github.com/mentalblood0/wool" }
 anyhow = { version = "1.0", features = ["std", "backtrace"] }
 fallible-iterator = { version = "0.3", features = ["std"] }
 frankenstein = { version = "0.47", features = ["client-ureq"] }
