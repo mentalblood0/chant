@@ -3,11 +3,12 @@ pub mod user;
 pub mod write_transaction;
 
 use anyhow::{Context, Result};
+use fallible_iterator::FallibleIterator;
 use frankenstein::TelegramApi;
-use trove::PathSegment;
+use trove::path_segments;
 
 use crate::read_transaction::{ReadTransaction, ReadTransactionMethods};
-use crate::user::User;
+use crate::user::{MessageId, User};
 use crate::write_transaction::WriteTransaction;
 
 wool::define_sweater!(sweater(
@@ -85,7 +86,10 @@ impl Chant {
 
         loop {
             let get_updates_params = frankenstein::methods::GetUpdatesParams::builder()
-                .allowed_updates(vec![frankenstein::types::AllowedUpdate::Message])
+                .allowed_updates(vec![
+                    frankenstein::types::AllowedUpdate::Message,
+                    frankenstein::types::AllowedUpdate::MessageReaction,
+                ])
                 .offset(offset)
                 .build();
 
@@ -93,7 +97,7 @@ impl Chant {
 
             for update in updates.result {
                 if let frankenstein::updates::UpdateContent::Message(message) = &update.content {
-                    let user_id = User::id_from_telegram_id(message.chat.id);
+                    let user_id: trove::DocumentId = message.chat.id.into();
                     let mut text_option = None;
                     if let Some(ref message_text) = message.text {
                         text_option = Some(message_text.clone());
@@ -121,18 +125,57 @@ impl Chant {
                         self.lock_all_and_write(|transaction| {
                             transaction.queue_commands(user_id.clone(), &text)
                         })?;
-                        self.lock_all_writes_and_read(|transaction| {
-                            for cantor_user_telegram_id in
-                                transaction.get_cantors_telegram_user_ids()?
-                            {
-                                self.forward_message(message.message_id, cantor_user_telegram_id)?;
-                            }
+                        let sent_to_cantors_messages_ids =
+                            self.lock_all_writes_and_read(|transaction| {
+                                fallible_iterator::convert(
+                                    transaction
+                                        .get_cantors_user_ids()?
+                                        .iter()
+                                        .map(|cantor_user_id| Ok(cantor_user_id)),
+                                )
+                                .map(|cantor_user_id| {
+                                    Ok(MessageId {
+                                        telegram_message_id: self.forward_message(
+                                            message.message_id,
+                                            cantor_user_id.clone().into(),
+                                        )?,
+                                        chat_id: cantor_user_id.clone().into(),
+                                    })
+                                })
+                                .collect::<Vec<_>>()
+                            })?;
+                        self.lock_all_and_write(|transaction| {
+                            transaction
+                                .sweater_transaction
+                                .chest_transaction
+                                .users_update(
+                                    user_id.clone(),
+                                    path_segments!(
+                                        "commands_queue",
+                                        "sent_to_cantors_messages_ids"
+                                    ),
+                                    serde_json::to_value(&sent_to_cantors_messages_ids)?,
+                                );
                             Ok(())
                         })?;
-                        self.lock_all_and_write(|transaction| {
-                            transaction.queue_commands(user_id.clone(), &text)
-                        })?;
                         self.set_reaction(message, "✍️")?;
+                    }
+                }
+                if let frankenstein::updates::UpdateContent::MessageReaction(reaction) =
+                    &update.content
+                {
+                    for reaction_type in &reaction.new_reaction {
+                        if let frankenstein::types::ReactionType::Emoji(emoji) = reaction_type {
+                            if emoji.emoji == "👍" {
+                                self.lock_all_writes_and_read(|transaction| Ok(()))?;
+                                self.bot.delete_message(
+                                    &frankenstein::methods::DeleteMessageParams::builder()
+                                        .chat_id(reaction.chat.id)
+                                        .message_id(reaction.message_id)
+                                        .build(),
+                                )?;
+                            }
+                        }
                     }
                 }
                 offset = update.update_id as i64 + 1;
@@ -159,15 +202,18 @@ impl Chant {
         Ok(())
     }
 
-    pub fn forward_message(&self, message_id: i32, to_user_id: i64) -> Result<()> {
-        self.bot.forward_message(
-            &frankenstein::methods::ForwardMessageParams::builder()
-                .chat_id(to_user_id)
-                .from_chat_id(to_user_id)
-                .message_id(message_id)
-                .build(),
-        )?;
-        Ok(())
+    pub fn forward_message(&self, message_id: i32, to_user_id: i64) -> Result<i32> {
+        Ok(self
+            .bot
+            .forward_message(
+                &frankenstein::methods::ForwardMessageParams::builder()
+                    .chat_id(to_user_id)
+                    .from_chat_id(to_user_id)
+                    .message_id(message_id)
+                    .build(),
+            )?
+            .result
+            .message_id)
     }
 }
 

@@ -26,9 +26,9 @@ dependencies = [
 
 [[package]]
 name = "annotate-snippets"
-version = "0.12.12"
+version = "0.12.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c86cd1c51b95d71dde52bca69ed225008f6ff4c8cc825b08042aa1ef823e1980"
+checksum = "74fc7650eedcb2fee505aad48491529e408f0e854c2d9f63eb86c1361b9b3f93"
 dependencies = [
  "anstyle",
  "memchr",
@@ -158,7 +158,6 @@ dependencies = [
  "serde_json",
  "trove",
  "wool",
- "xxhash-rust",
 ]
 
 [[package]]
@@ -811,7 +810,7 @@ checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
 [[package]]
 name = "saphyr-parser-bw"
 version = "0.0.609"
-source = "git+https://github.com/bourumir-wyngs/saphyr?branch=dev%2Fsaphyr-parser#a4737f3a483422c80dce0bcf91264b7bf87ecf7f"
+source = "git+https://github.com/bourumir-wyngs/saphyr?branch=dev%2Fsaphyr-parser#d83e734900d98244e8f8e348e3d32344e7b47222"
 dependencies = [
  "arraydeque",
  "smallvec",
@@ -985,7 +984,7 @@ dependencies = [
 [[package]]
 name = "trove"
 version = "0.1.0"
-source = "git+https://github.com/mentalblood0/trove#29ee36bbeb50a59ab83af65e6a0ffb970bff08c6"
+source = "git+https://github.com/mentalblood0/trove#fc434e5f419178a7795721096b3d1ade6564e1df"
 dependencies = [
  "anyhow",
  "base64",
@@ -995,7 +994,6 @@ dependencies = [
  "serde",
  "serde_json",
  "uuid",
- "xxhash-rust",
 ]
 
 [[package]]
@@ -1388,7 +1386,7 @@ dependencies = [
 [[package]]
 name = "wool"
 version = "0.1.0"
-source = "git+https://github.com/mentalblood0/wool#9c632d48ac835dc8316223b96a2e26b171562106"
+source = "git+https://github.com/mentalblood0/wool#ad34656f44407a8347c348e6a5116a3791afda40"
 dependencies = [
  "anyhow",
  "fallible-iterator",
@@ -1397,7 +1395,6 @@ dependencies = [
  "serde",
  "serde_json",
  "trove",
- "xxhash-rust",
 ]
 
 [[package]]

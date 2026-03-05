@@ -1,8 +1,10 @@
 use anyhow::Result;
 use fallible_iterator::FallibleIterator;
+use trove::path_segments;
 
 use crate::sweater;
 use crate::user::Role;
+use crate::user::User;
 
 pub struct ReadTransaction<'a> {
     pub sweater_transaction: &'a sweater::ReadTransaction<'a>,
@@ -11,26 +13,14 @@ pub struct ReadTransaction<'a> {
 #[macro_export]
 macro_rules! define_read_methods {
     ($lifetime:lifetime) => {
-        fn get_user_id_by_telegram_id(
-            &self,
-            telegram_id: i64,
-        ) -> Result<Option<trove::DocumentId>> {
-            Ok(self
-                .sweater_transaction
+        fn is_queue_full(&self, user_telegram_id: i64) -> Result<bool> {
+            let user_id = User::id_from_telegram_id(user_telegram_id);
+            self.sweater_transaction
                 .chest_transaction
-                .users_select(
-                    &vec![(
-                        trove::IndexRecordType::Direct,
-                        trove::path_segments!("telegram_id"),
-                        serde_json::to_value(telegram_id)?,
-                    )],
-                    &vec![],
-                    None,
-                )?
-                .next()?)
+                .theses_contains_path(&user_id, &path_segments!("commands_queue"))
         }
 
-        fn get_cantors_telegram_user_ids(&self) -> Result<Vec<i64>> {
+        fn get_cantors_user_ids(&self) -> Result<Vec<trove::DocumentId>> {
             self.sweater_transaction
                 .chest_transaction
                 .users_select(
@@ -42,22 +32,14 @@ macro_rules! define_read_methods {
                     &vec![],
                     None,
                 )?
-                .map(|user_id| {
-                    Ok(serde_json::from_value::<i64>(
-                        self.sweater_transaction
-                            .chest_transaction
-                            .users_get(&user_id, &trove::path_segments!("telegram_id"))?
-                            .unwrap(),
-                    )?)
-                })
                 .collect()
         }
     };
 }
 
 pub trait ReadTransactionMethods<'a> {
-    fn get_user_id_by_telegram_id(&self, telegram_id: i64) -> Result<Option<trove::DocumentId>>;
-    fn get_cantors_telegram_user_ids(&self) -> Result<Vec<i64>>;
+    fn is_queue_full(&self, user_telegram_id: i64) -> Result<bool>;
+    fn get_cantors_user_ids(&self) -> Result<Vec<trove::DocumentId>>;
 }
 
 impl<'a> ReadTransactionMethods<'a> for ReadTransaction<'a> {
