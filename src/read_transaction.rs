@@ -1,20 +1,24 @@
 use anyhow::Result;
 use fallible_iterator::FallibleIterator;
 
+use crate::sweater;
 use crate::user::Role;
 
 pub struct ReadTransaction<'a> {
-    pub sweater_transaction: &'a woollib::read_transaction::ReadTransaction<'a>,
+    pub sweater_transaction: &'a sweater::ReadTransaction<'a>,
 }
 
 #[macro_export]
 macro_rules! define_read_methods {
     ($lifetime:lifetime) => {
-        fn get_user_id_by_telegram_id(&self, telegram_id: i64) -> Result<Option<trove::ObjectId>> {
+        fn get_user_id_by_telegram_id(
+            &self,
+            telegram_id: i64,
+        ) -> Result<Option<trove::DocumentId>> {
             Ok(self
                 .sweater_transaction
                 .chest_transaction
-                .select(
+                .users_select(
                     &vec![(
                         trove::IndexRecordType::Direct,
                         trove::path_segments!("telegram_id"),
@@ -29,7 +33,7 @@ macro_rules! define_read_methods {
         fn get_cantors_telegram_user_ids(&self) -> Result<Vec<i64>> {
             self.sweater_transaction
                 .chest_transaction
-                .select(
+                .users_select(
                     &vec![(
                         trove::IndexRecordType::Direct,
                         trove::path_segments!("role"),
@@ -42,7 +46,7 @@ macro_rules! define_read_methods {
                     Ok(serde_json::from_value::<i64>(
                         self.sweater_transaction
                             .chest_transaction
-                            .get(&user_id, &trove::path_segments!("telegram_id"))?
+                            .users_get(&user_id, &trove::path_segments!("telegram_id"))?
                             .unwrap(),
                     )?)
                 })
@@ -52,7 +56,7 @@ macro_rules! define_read_methods {
 }
 
 pub trait ReadTransactionMethods<'a> {
-    fn get_user_id_by_telegram_id(&self, telegram_id: i64) -> Result<Option<trove::ObjectId>>;
+    fn get_user_id_by_telegram_id(&self, telegram_id: i64) -> Result<Option<trove::DocumentId>>;
     fn get_cantors_telegram_user_ids(&self) -> Result<Vec<i64>>;
 }
 
