@@ -8,7 +8,7 @@ use frankenstein::TelegramApi;
 use trove::path_segments;
 
 use crate::read_transaction::{ReadTransaction, ReadTransactionMethods};
-use crate::user::{MessageId, User};
+use crate::user::{MessageGlobalId, User};
 use crate::write_transaction::WriteTransaction;
 
 wool::define_sweater!(sweater(
@@ -123,7 +123,14 @@ impl Chant {
                     };
                     if let Some(text) = text_option {
                         self.lock_all_and_write(|transaction| {
-                            transaction.queue_commands(user_id.clone(), &text)
+                            transaction.queue_commands(
+                                MessageGlobalId {
+                                    message_id: message.message_id,
+                                    chat_id: message.chat.id,
+                                },
+                                user_id.clone(),
+                                &text,
+                            )
                         })?;
                         let sent_to_cantors_messages_ids =
                             self.lock_all_writes_and_read(|transaction| {
@@ -134,8 +141,8 @@ impl Chant {
                                         .map(|cantor_user_id| Ok(cantor_user_id)),
                                 )
                                 .map(|cantor_user_id| {
-                                    Ok(MessageId {
-                                        telegram_message_id: self.forward_message(
+                                    Ok(MessageGlobalId {
+                                        message_id: self.forward_message(
                                             message.message_id,
                                             cantor_user_id.clone().into(),
                                         )?,

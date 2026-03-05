@@ -7,6 +7,7 @@ use trove::path_segments;
 use crate::define_read_methods;
 use crate::read_transaction::ReadTransactionMethods;
 use crate::sweater;
+use crate::user::MessageGlobalId;
 use crate::user::QueuedCommands;
 use crate::user::Role;
 use crate::user::User;
@@ -24,11 +25,17 @@ impl<'a, 'b, 'c, 'd, 'e> ReadTransactionMethods<'a> for &mut WriteTransaction<'a
 }
 
 impl WriteTransaction<'_, '_, '_, '_, '_> {
-    pub fn queue_commands(&mut self, user_id: trove::DocumentId, text: &str) -> Result<()> {
+    pub fn queue_commands(
+        &mut self,
+        source_message_id: MessageGlobalId,
+        user_id: trove::DocumentId,
+        text: &str,
+    ) -> Result<()> {
         self.sweater_transaction.chest_transaction.users_update(
             user_id,
             trove::path_segments!("commands_queue"),
             serde_json::to_value(QueuedCommands {
+                source_message_global_id: source_message_id,
                 commands: sweater::CommandsIterator::new(
                     text,
                     &self
