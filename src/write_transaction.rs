@@ -48,7 +48,7 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
     }
 
     pub fn execute_commands_queue(&mut self, user_telegram_id: i64) -> Result<()> {
-        let user_id = User::id_from_telegram_id(user_telegram_id);
+        let user_id = user_telegram_id.into();
         if let Some(commands_json_value) = self
             .sweater_transaction
             .chest_transaction
@@ -72,7 +72,7 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
             self.sweater_transaction
                 .chest_transaction
                 .users_insert_with_id(trove::Document {
-                    id: user.id(),
+                    id: user.telegram_id.into(),
                     value: serde_json::to_value(user)?,
                 })?;
         }

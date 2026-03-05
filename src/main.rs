@@ -155,7 +155,7 @@ impl Chant {
                                         "sent_to_cantors_messages_ids"
                                     ),
                                     serde_json::to_value(&sent_to_cantors_messages_ids)?,
-                                );
+                                )?;
                             Ok(())
                         })?;
                         self.set_reaction(message, "✍️")?;
@@ -167,7 +167,19 @@ impl Chant {
                     for reaction_type in &reaction.new_reaction {
                         if let frankenstein::types::ReactionType::Emoji(emoji) = reaction_type {
                             if emoji.emoji == "👍" {
-                                self.lock_all_writes_and_read(|transaction| Ok(()))?;
+                                self.lock_all_writes_and_read(|transaction| {
+                                    transaction
+                                        .sweater_transaction
+                                        .chest_transaction
+                                        .users_get(
+                                            &reaction.chat.id.into(),
+                                            &path_segments!(
+                                                "commands_queue",
+                                                "sent_to_cantors_messages_ids"
+                                            ),
+                                        )?;
+                                    Ok(())
+                                })?;
                                 self.bot.delete_message(
                                     &frankenstein::methods::DeleteMessageParams::builder()
                                         .chat_id(reaction.chat.id)

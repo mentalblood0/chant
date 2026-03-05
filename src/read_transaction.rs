@@ -4,7 +4,6 @@ use trove::path_segments;
 
 use crate::sweater;
 use crate::user::Role;
-use crate::user::User;
 
 pub struct ReadTransaction<'a> {
     pub sweater_transaction: &'a sweater::ReadTransaction<'a>,
@@ -14,10 +13,9 @@ pub struct ReadTransaction<'a> {
 macro_rules! define_read_methods {
     ($lifetime:lifetime) => {
         fn is_queue_full(&self, user_telegram_id: i64) -> Result<bool> {
-            let user_id = User::id_from_telegram_id(user_telegram_id);
             self.sweater_transaction
                 .chest_transaction
-                .theses_contains_path(&user_id, &path_segments!("commands_queue"))
+                .theses_contains_path(&user_telegram_id.into(), &path_segments!("commands_queue"))
         }
 
         fn get_cantors_user_ids(&self) -> Result<Vec<trove::DocumentId>> {

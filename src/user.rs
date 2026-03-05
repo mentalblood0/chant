@@ -12,7 +12,7 @@ pub struct MessageId {
     pub chat_id: i64,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq, Default)]
 pub struct QueuedCommands {
     #[serde(default)]
     pub commands: Vec<sweater::Command>,
@@ -25,5 +25,7 @@ pub struct QueuedCommands {
 pub struct User {
     pub telegram_id: i64,
     pub role: Role,
+
+    #[serde(default)]
     pub commands_queue: QueuedCommands,
 }
