@@ -1,6 +1,7 @@
 use crate::sweater;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
+#[repr(u8)]
 pub enum Role {
     Cantor,
     Offerer,
@@ -23,5 +24,7 @@ pub struct QueuedCommands {
 pub struct User {
     pub telegram_id: i64,
     pub role: Role,
+
+    #[serde(default)]
     pub commands_queue: Option<QueuedCommands>,
 }

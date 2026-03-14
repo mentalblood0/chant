@@ -2,7 +2,7 @@ pub mod read_transaction;
 pub mod user;
 pub mod write_transaction;
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use fallible_iterator::FallibleIterator;
 use frankenstein::TelegramApi;
 use trove::path_segments;
@@ -165,7 +165,13 @@ impl Chant {
                                 )?;
                             Ok(())
                         })?;
-                        self.set_reaction(message, "✍️")?;
+                        self.set_reaction(
+                            &MessageGlobalId {
+                                message_id: message.message_id,
+                                chat_id: message.chat.id,
+                            },
+                            "✍️",
+                        )?;
                     }
                 }
                 if let frankenstein::updates::UpdateContent::MessageReaction(reaction) =
@@ -174,25 +180,73 @@ impl Chant {
                     for reaction_type in &reaction.new_reaction {
                         if let frankenstein::types::ReactionType::Emoji(emoji) = reaction_type {
                             if emoji.emoji == "👍" {
-                                self.lock_all_writes_and_read(|transaction| {
-                                    transaction
-                                        .sweater_transaction
-                                        .chest_transaction
-                                        .users_get(
-                                            &reaction.chat.id.into(),
-                                            &path_segments!(
-                                                "commands_queue",
-                                                "sent_to_cantors_messages_ids"
-                                            ),
-                                        )?;
-                                    Ok(())
-                                })?;
-                                self.bot.delete_message(
-                                    &frankenstein::methods::DeleteMessageParams::builder()
-                                        .chat_id(reaction.chat.id)
-                                        .message_id(reaction.message_id)
-                                        .build(),
+                                let approved_queued_commands =
+                                    self.lock_all_and_write(|transaction| {
+                                        let user_which_commands_were_approved = transaction
+                                            .sweater_transaction
+                                            .chest_transaction
+                                            .users_select(
+                                                &vec![(
+                                                    trove::search_path_segments!(
+                                                        "commands_queue",
+                                                        "sent_to_cantors_messages_ids",
+                                                        ()
+                                                    ),
+                                                    reaction.chat.id.into(),
+                                                )],
+                                                &vec![],
+                                                None,
+                                            )?
+                                            .next()?
+                                            .ok_or_else(|| {
+                                                anyhow!("Can not find user with source message")
+                                            })?;
+                                        let approved_queued_commands = serde_json::from_value::<
+                                            Option<user::QueuedCommands>,
+                                        >(
+                                            transaction
+                                                .sweater_transaction
+                                                .chest_transaction
+                                                .users_get(
+                                                    &user_which_commands_were_approved,
+                                                    &path_segments!("commands_queue",),
+                                                )?
+                                                .ok_or_else(|| {
+                                                    anyhow!("Can not get commands queue")
+                                                })?,
+                                        )
+                                        .with_context(|| "Can not parse commands queue from JSON")?
+                                        .ok_or_else(|| {
+                                            anyhow!("Expected queued commands but there is none")
+                                        })?;
+                                        transaction
+                                            .sweater_transaction
+                                            .chest_transaction
+                                            .users_remove(
+                                                &user_which_commands_were_approved,
+                                                &path_segments!("commands_queue"),
+                                            )?;
+                                        for command in approved_queued_commands.commands.iter() {
+                                            transaction
+                                                .sweater_transaction
+                                                .execute_command(&command)?;
+                                        }
+                                        Ok(approved_queued_commands)
+                                    })?;
+                                self.set_reaction(
+                                    &approved_queued_commands.source_message_global_id,
+                                    "👍",
                                 )?;
+                                for sent_to_cantor_global_message_id in
+                                    approved_queued_commands.sent_to_cantors_messages_ids
+                                {
+                                    self.bot.delete_message(
+                                        &frankenstein::methods::DeleteMessageParams::builder()
+                                            .chat_id(sent_to_cantor_global_message_id.chat_id)
+                                            .message_id(sent_to_cantor_global_message_id.message_id)
+                                            .build(),
+                                    )?;
+                                }
                             }
                         }
                     }
@@ -204,13 +258,13 @@ impl Chant {
 
     pub fn set_reaction(
         &self,
-        message: &frankenstein::types::Message,
+        message_global_id: &MessageGlobalId,
         reaction_emoji_str: &str,
     ) -> Result<()> {
         self.bot.set_message_reaction(
             &frankenstein::methods::SetMessageReactionParams::builder()
-                .chat_id(message.chat.id)
-                .message_id(message.message_id)
+                .chat_id(message_global_id.chat_id)
+                .message_id(message_global_id.message_id)
                 .reaction(vec![frankenstein::types::ReactionType::Emoji(
                     frankenstein::types::ReactionTypeEmoji::builder()
                         .emoji(reaction_emoji_str.to_string())
