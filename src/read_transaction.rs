@@ -23,8 +23,7 @@ macro_rules! define_read_methods {
                 .chest_transaction
                 .users_select(
                     &vec![(
-                        trove::IndexRecordType::Direct,
-                        trove::path_segments!("role"),
+                        trove::search_path_segments!("role"),
                         serde_json::to_value(Role::Cantor)?,
                     )],
                     &vec![],
