@@ -96,6 +96,7 @@ impl Chant {
             let updates = self.bot.get_updates(&get_updates_params)?;
 
             for update in updates.result {
+                dbg!(&update);
                 if let frankenstein::updates::UpdateContent::Message(message) = &update.content {
                     let user_id: trove::DocumentId = message.chat.id.into();
                     let mut text_option = None;
@@ -107,6 +108,7 @@ impl Chant {
                                 .file_id(file_id)
                                 .build(),
                         ) {
+                            dbg!(&file);
                             if let Some(file_path) = file.result.file_path {
                                 let url = format!(
                                     "https://api.telegram.org/file/bot{}/{}",
@@ -155,7 +157,7 @@ impl Chant {
                             transaction
                                 .sweater_transaction
                                 .chest_transaction
-                                .users_update(
+                                .users_set(
                                     user_id.clone(),
                                     path_segments!(
                                         "commands_queue",
@@ -192,7 +194,10 @@ impl Chant {
                                                         "sent_to_cantors_messages_ids",
                                                         ()
                                                     ),
-                                                    reaction.chat.id.into(),
+                                                    serde_json::to_value(MessageGlobalId {
+                                                        chat_id: reaction.chat.id.into(),
+                                                        message_id: reaction.message_id,
+                                                    })?,
                                                 )],
                                                 &vec![],
                                                 None,

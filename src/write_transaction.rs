@@ -31,7 +31,7 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
         user_id: trove::DocumentId,
         text: &str,
     ) -> Result<()> {
-        self.sweater_transaction.chest_transaction.users_update(
+        self.sweater_transaction.chest_transaction.users_set(
             user_id,
             trove::path_segments!("commands_queue"),
             serde_json::to_value(QueuedCommands {
