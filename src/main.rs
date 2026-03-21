@@ -96,6 +96,8 @@ impl Chant {
             let updates = self.bot.get_updates(&get_updates_params)?;
 
             for update in updates.result {
+                // offset = update.update_id as i64 + 1;
+                // continue;
                 dbg!(&update);
                 if let frankenstein::updates::UpdateContent::Message(message) = &update.content {
                     let user_id: trove::DocumentId = message.chat.id.into();
@@ -206,7 +208,7 @@ impl Chant {
                                             .ok_or_else(|| {
                                                 anyhow!("Can not find user with source message")
                                             })?;
-                                        let approved_queued_commands = serde_json::from_value::<
+                                        let result = serde_json::from_value::<
                                             Option<user::QueuedCommands>,
                                         >(
                                             transaction
@@ -231,12 +233,12 @@ impl Chant {
                                                 &user_which_commands_were_approved,
                                                 &path_segments!("commands_queue"),
                                             )?;
-                                        for command in approved_queued_commands.commands.iter() {
+                                        for command in result.commands.iter() {
                                             transaction
                                                 .sweater_transaction
                                                 .execute_command(&command)?;
                                         }
-                                        Ok(approved_queued_commands)
+                                        Ok(result)
                                     })?;
                                 self.set_reaction(
                                     &approved_queued_commands.source_message_global_id,

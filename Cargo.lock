@@ -203,7 +203,7 @@ checksum = "56254986775e3233ffa9c4d7d3faaf6d36a2c09d30b20687e9f88bc8bafc16c8"
 [[package]]
 name = "dream"
 version = "0.1.0"
-source = "git+https://github.com/mentalblood0/dream#fd130d1b6e213cfb797608da2565fb078d02b664"
+source = "git+https://github.com/mentalblood0/dream#5d63f617bbd0e0ad05317b4336af2058dcea0cdd"
 dependencies = [
  "anyhow",
  "fallible-iterator",
@@ -416,7 +416,7 @@ dependencies = [
 [[package]]
 name = "lawn"
 version = "0.1.0"
-source = "git+https://github.com/mentalblood0/lawn#9c24fc932a2c5f5fee4684fe170a126df5ae7ed8"
+source = "git+https://github.com/mentalblood0/lawn#767753e41c230ed4e67880e6b6cd2df7ebf6cfbd"
 dependencies = [
  "anyhow",
  "bincode",
@@ -944,7 +944,7 @@ dependencies = [
 [[package]]
 name = "trove"
 version = "0.1.0"
-source = "git+https://github.com/mentalblood0/trove#2fd8685466b0c029d52e80092a7383b1a3135a8e"
+source = "git+https://github.com/mentalblood0/trove#0193695367b61a79a65cecbc517258b81d7324a4"
 dependencies = [
  "anyhow",
  "base64",
@@ -995,9 +995,9 @@ checksum = "6d49784317cd0d1ee7ec5c716dd598ec5b4483ea832a2dced265471cc0f690ae"
 
 [[package]]
 name = "ureq"
-version = "3.2.1"
+version = "3.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ab5172ab0c2b6d01a9bb4f9332f7c1211193ea002742188040d09ea4eafe867"
+checksum = "dea7109cdcd5864d4eeb1b58a1648dc9bf520360d7af16ec26d0a9354bafcfc0"
 dependencies = [
  "base64",
  "log",
@@ -1011,9 +1011,9 @@ dependencies = [
 
 [[package]]
 name = "ureq-proto"
-version = "0.5.3"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d81f9efa9df032be5934a46a068815a10a042b494b6a58cb0a1a97bb5467ed6f"
+checksum = "e994ba84b0bd1b1b0cf92878b7ef898a5c1760108fe7b6010327e274917a808c"
 dependencies = [
  "base64",
  "http",

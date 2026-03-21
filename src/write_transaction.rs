@@ -34,7 +34,7 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
         self.sweater_transaction.chest_transaction.users_set(
             user_id,
             trove::path_segments!("commands_queue"),
-            serde_json::to_value(QueuedCommands {
+            serde_json::to_value(Some(QueuedCommands {
                 source_message_global_id: source_message_id,
                 commands: sweater::CommandsIterator::new(
                     text,
@@ -49,7 +49,7 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
                 )
                 .collect::<Vec<_>>()?,
                 sent_to_cantors_messages_ids: vec![],
-            })?,
+            }))?,
         )?;
         Ok(())
     }
