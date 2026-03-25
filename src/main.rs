@@ -184,68 +184,88 @@ impl Chant {
                     for reaction_type in &reaction.new_reaction {
                         if let frankenstein::types::ReactionType::Emoji(emoji) = reaction_type {
                             if emoji.emoji == "👍" {
-                                let approved_queued_commands =
-                                    self.lock_all_and_write(|transaction| {
-                                        let user_which_commands_were_approved = transaction
-                                            .sweater_transaction
-                                            .chest_transaction
-                                            .users_select(
-                                                &vec![(
-                                                    trove::search_path_segments!(
-                                                        "commands_queue",
-                                                        "sent_to_cantors_messages_ids",
-                                                        ()
-                                                    ),
-                                                    serde_json::to_value(MessageGlobalId {
-                                                        chat_id: reaction.chat.id.into(),
-                                                        message_id: reaction.message_id,
-                                                    })?,
-                                                )],
-                                                &vec![],
-                                                None,
-                                            )?
-                                            .next()?
-                                            .ok_or_else(|| {
-                                                anyhow!("Can not find user with source message")
-                                            })?;
-                                        let result = serde_json::from_value::<
-                                            Option<user::QueuedCommands>,
-                                        >(
-                                            transaction
-                                                .sweater_transaction
-                                                .chest_transaction
-                                                .users_get(
-                                                    &user_which_commands_were_approved,
-                                                    &path_segments!("commands_queue",),
-                                                )?
-                                                .ok_or_else(|| {
-                                                    anyhow!("Can not get commands queue")
+                                let (
+                                    source_message_global_id,
+                                    sent_to_cantors_global_messages_ids,
+                                    error_for_offerer_option,
+                                ) = self.lock_all_and_write(|transaction| {
+                                    let user_which_commands_were_approved = transaction
+                                        .sweater_transaction
+                                        .chest_transaction
+                                        .users_select(
+                                            &vec![(
+                                                trove::search_path_segments!(
+                                                    "commands_queue",
+                                                    "sent_to_cantors_messages_ids",
+                                                    ()
+                                                ),
+                                                serde_json::to_value(MessageGlobalId {
+                                                    chat_id: reaction.chat.id.into(),
+                                                    message_id: reaction.message_id,
                                                 })?,
-                                        )
-                                        .with_context(|| "Can not parse commands queue from JSON")?
+                                            )],
+                                            &vec![],
+                                            None,
+                                        )?
+                                        .next()?
                                         .ok_or_else(|| {
-                                            anyhow!("Expected queued commands but there is none")
+                                            anyhow!("Can not find user with source message")
                                         })?;
+                                    let approved_queued_commands = serde_json::from_value::<
+                                        Option<user::QueuedCommands>,
+                                    >(
                                         transaction
                                             .sweater_transaction
                                             .chest_transaction
-                                            .users_remove(
+                                            .users_get(
                                                 &user_which_commands_were_approved,
-                                                &path_segments!("commands_queue"),
-                                            )?;
-                                        for command in result.commands.iter() {
-                                            transaction
-                                                .sweater_transaction
-                                                .execute_command(&command)?;
-                                        }
-                                        Ok(result)
+                                                &path_segments!("commands_queue",),
+                                            )?
+                                            .ok_or_else(|| anyhow!("Can not get commands queue"))?,
+                                    )
+                                    .with_context(|| "Can not parse commands queue from JSON")?
+                                    .ok_or_else(|| {
+                                        anyhow!("Expected queued commands but there is none")
                                     })?;
-                                self.set_reaction(
-                                    &approved_queued_commands.source_message_global_id,
-                                    "👍",
-                                )?;
+                                    transaction
+                                        .sweater_transaction
+                                        .chest_transaction
+                                        .users_remove(
+                                            &user_which_commands_were_approved,
+                                            &path_segments!("commands_queue"),
+                                        )?;
+                                    for command in approved_queued_commands.commands.iter() {
+                                        transaction
+                                            .sweater_transaction
+                                            .execute_command(&command)?;
+                                    }
+                                    Ok((
+                                        approved_queued_commands.source_message_global_id,
+                                        approved_queued_commands.sent_to_cantors_messages_ids,
+                                        None::<String>,
+                                    ))
+                                })?;
+                                if let Some(error_for_offerer) = error_for_offerer_option {
+                                    self.bot.send_message(
+                                        &frankenstein::methods::SendMessageParams::builder()
+                                            .chat_id(source_message_global_id.chat_id)
+                                            .reply_parameters(
+                                                frankenstein::types::ReplyParameters::builder()
+                                                    .message_id(source_message_global_id.message_id)
+                                                    .build(),
+                                            )
+                                            .text(format!(
+                                                "There was error executing commands: {}",
+                                                error_for_offerer
+                                            ))
+                                            .build(),
+                                    )?;
+                                    self.set_reaction(&source_message_global_id, "🤔")?;
+                                } else {
+                                    self.set_reaction(&source_message_global_id, "👍")?;
+                                }
                                 for sent_to_cantor_global_message_id in
-                                    approved_queued_commands.sent_to_cantors_messages_ids
+                                    sent_to_cantors_global_messages_ids
                                 {
                                     self.bot.delete_message(
                                         &frankenstein::methods::DeleteMessageParams::builder()
