@@ -201,11 +201,11 @@ impl Chant {
                 {
                     for reaction_type in &reaction.new_reaction {
                         if let frankenstein::types::ReactionType::Emoji(emoji) = reaction_type {
-                            if emoji.emoji == "👍" {
+                            if emoji.emoji == "👍" || emoji.emoji == "👎" {
                                 let (
                                     source_message_global_id,
                                     sent_to_cantors_global_messages_ids,
-                                    error_executing_commands,
+                                    commands_execution_error_option,
                                 ) = self.lock_all_and_write(|transaction| {
                                     let user_which_commands_were_approved = transaction
                                         .sweater_transaction
@@ -252,18 +252,28 @@ impl Chant {
                                             &user_which_commands_were_approved,
                                             &path_segments!("commands_queue"),
                                         )?;
-                                    for command in approved_queued_commands.commands.iter() {
-                                        transaction
-                                            .sweater_transaction
-                                            .execute_command(&command)?;
+                                    let mut commands_execution_error_option = None;
+                                    if emoji.emoji == "👍" {
+                                        for command in approved_queued_commands.commands.iter() {
+                                            if let Err(commands_execution_error) = transaction
+                                                .sweater_transaction
+                                                .execute_command(&command)
+                                            {
+                                                commands_execution_error_option =
+                                                    Some(commands_execution_error);
+                                                break;
+                                            }
+                                        }
                                     }
                                     Ok((
                                         approved_queued_commands.source_message_global_id,
                                         approved_queued_commands.sent_to_cantors_messages_ids,
-                                        None::<String>,
+                                        commands_execution_error_option,
                                     ))
                                 })?;
-                                if let Some(error_for_offerer) = error_executing_commands {
+                                if let Some(commands_execution_error) =
+                                    commands_execution_error_option
+                                {
                                     self.bot.send_message(
                                         &frankenstein::methods::SendMessageParams::builder()
                                             .chat_id(source_message_global_id.chat_id)
@@ -274,13 +284,13 @@ impl Chant {
                                             )
                                             .text(format!(
                                                 "There was error executing commands: {}",
-                                                error_for_offerer
+                                                commands_execution_error
                                             ))
                                             .build(),
                                     )?;
                                     self.set_reaction(&source_message_global_id, "🤔")?;
                                 } else {
-                                    self.set_reaction(&source_message_global_id, "👍")?;
+                                    self.set_reaction(&source_message_global_id, &emoji.emoji)?;
                                 }
                                 for sent_to_cantor_global_message_id in
                                     sent_to_cantors_global_messages_ids
