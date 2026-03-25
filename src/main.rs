@@ -126,56 +126,74 @@ impl Chant {
                         }
                     };
                     if let Some(text) = text_option {
-                        self.lock_all_and_write(|transaction| {
-                            transaction.queue_commands(
-                                MessageGlobalId {
+                        if let Err(error_queuing_commands) =
+                            self.lock_all_and_write(|transaction| {
+                                transaction.queue_commands(
+                                    MessageGlobalId {
+                                        message_id: message.message_id,
+                                        chat_id: message.chat.id,
+                                    },
+                                    user_id.clone(),
+                                    &text,
+                                )
+                            })
+                        {
+                            self.bot.send_message(
+                                &frankenstein::methods::SendMessageParams::builder()
+                                    .chat_id(message.chat.id)
+                                    .reply_parameters(
+                                        frankenstein::types::ReplyParameters::builder()
+                                            .message_id(message.message_id)
+                                            .build(),
+                                    )
+                                    .text(format!(
+                                        "There was error queuing commands: {}",
+                                        error_queuing_commands
+                                    ))
+                                    .build(),
+                            )?;
+                        } else {
+                            let sent_to_cantors_messages_ids =
+                                self.lock_all_writes_and_read(|transaction| {
+                                    fallible_iterator::convert(
+                                        transaction
+                                            .get_cantors_user_ids()?
+                                            .iter()
+                                            .map(|cantor_user_id| Ok(cantor_user_id)),
+                                    )
+                                    .map(|cantor_user_id| {
+                                        Ok(MessageGlobalId {
+                                            message_id: self.forward_message(
+                                                message.message_id,
+                                                cantor_user_id.clone().into(),
+                                            )?,
+                                            chat_id: cantor_user_id.clone().into(),
+                                        })
+                                    })
+                                    .collect::<Vec<_>>()
+                                })?;
+                            self.lock_all_and_write(|transaction| {
+                                transaction
+                                    .sweater_transaction
+                                    .chest_transaction
+                                    .users_set(
+                                        user_id.clone(),
+                                        path_segments!(
+                                            "commands_queue",
+                                            "sent_to_cantors_messages_ids"
+                                        ),
+                                        serde_json::to_value(&sent_to_cantors_messages_ids)?,
+                                    )?;
+                                Ok(())
+                            })?;
+                            self.set_reaction(
+                                &MessageGlobalId {
                                     message_id: message.message_id,
                                     chat_id: message.chat.id,
                                 },
-                                user_id.clone(),
-                                &text,
-                            )
-                        })?;
-                        let sent_to_cantors_messages_ids =
-                            self.lock_all_writes_and_read(|transaction| {
-                                fallible_iterator::convert(
-                                    transaction
-                                        .get_cantors_user_ids()?
-                                        .iter()
-                                        .map(|cantor_user_id| Ok(cantor_user_id)),
-                                )
-                                .map(|cantor_user_id| {
-                                    Ok(MessageGlobalId {
-                                        message_id: self.forward_message(
-                                            message.message_id,
-                                            cantor_user_id.clone().into(),
-                                        )?,
-                                        chat_id: cantor_user_id.clone().into(),
-                                    })
-                                })
-                                .collect::<Vec<_>>()
-                            })?;
-                        self.lock_all_and_write(|transaction| {
-                            transaction
-                                .sweater_transaction
-                                .chest_transaction
-                                .users_set(
-                                    user_id.clone(),
-                                    path_segments!(
-                                        "commands_queue",
-                                        "sent_to_cantors_messages_ids"
-                                    ),
-                                    serde_json::to_value(&sent_to_cantors_messages_ids)?,
-                                )?;
-                            Ok(())
-                        })?;
-                        self.set_reaction(
-                            &MessageGlobalId {
-                                message_id: message.message_id,
-                                chat_id: message.chat.id,
-                            },
-                            "✍️",
-                        )?;
+                                "✍️",
+                            )?;
+                        }
                     }
                 }
                 if let frankenstein::updates::UpdateContent::MessageReaction(reaction) =
@@ -187,7 +205,7 @@ impl Chant {
                                 let (
                                     source_message_global_id,
                                     sent_to_cantors_global_messages_ids,
-                                    error_for_offerer_option,
+                                    error_executing_commands,
                                 ) = self.lock_all_and_write(|transaction| {
                                     let user_which_commands_were_approved = transaction
                                         .sweater_transaction
@@ -245,7 +263,7 @@ impl Chant {
                                         None::<String>,
                                     ))
                                 })?;
-                                if let Some(error_for_offerer) = error_for_offerer_option {
+                                if let Some(error_for_offerer) = error_executing_commands {
                                     self.bot.send_message(
                                         &frankenstein::methods::SendMessageParams::builder()
                                             .chat_id(source_message_global_id.chat_id)
