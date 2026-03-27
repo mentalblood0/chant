@@ -1,6 +1,9 @@
+pub mod commands;
 pub mod read_transaction;
 pub mod user;
 pub mod write_transaction;
+
+use std::collections::BTreeMap;
 
 use anyhow::{anyhow, Context, Result};
 use fallible_iterator::FallibleIterator;
@@ -101,100 +104,124 @@ impl Chant {
                 dbg!(&update);
                 if let frankenstein::updates::UpdateContent::Message(message) = &update.content {
                     let user_id: trove::DocumentId = message.chat.id.into();
-                    let mut text_option = None;
                     if let Some(ref message_text) = message.text {
-                        text_option = Some(message_text.clone());
+                        let reply_text = self.lock_all_and_write(|transaction| {
+                            let commands = commands::CommandsIterator::new(
+                                message_text,
+                                &mut sweater::AliasesResolver {
+                                    read_able_transaction: transaction.sweater_transaction,
+                                    known_aliases: BTreeMap::new(),
+                                },
+                            )
+                            .collect::<Vec<_>>()?;
+                            Ok(serde_saphyr::to_string(
+                                &fallible_iterator::convert(
+                                    commands
+                                        .iter()
+                                        .map(|command| transaction.execute_command(command)),
+                                )
+                                .collect::<Vec<_>>()?,
+                            )?)
+                        })?;
+                        self.bot.send_message(
+                            &frankenstein::methods::SendMessageParams::builder()
+                                .chat_id(message.chat.id)
+                                .reply_parameters(
+                                    frankenstein::types::ReplyParameters::builder()
+                                        .message_id(message.message_id)
+                                        .build(),
+                                )
+                                .text(reply_text)
+                                .build(),
+                        )?;
                     } else if let Some(file_id) = Self::get_file_id(message) {
                         if let Ok(file) = self.bot.get_file(
                             &frankenstein::methods::GetFileParams::builder()
                                 .file_id(file_id)
                                 .build(),
                         ) {
-                            dbg!(&file);
                             if let Some(file_path) = file.result.file_path {
                                 let url = format!(
                                     "https://api.telegram.org/file/bot{}/{}",
                                     self.config.token, file_path
                                 );
-                                text_option = Some(
-                                    frankenstein::ureq::get(&url)
-                                        .call()?
-                                        .into_body()
-                                        .read_to_string()?,
-                                );
+                                let text = frankenstein::ureq::get(&url)
+                                    .call()?
+                                    .into_body()
+                                    .read_to_string()?;
+                                if let Err(error_queuing_commands) =
+                                    self.lock_all_and_write(|transaction| {
+                                        transaction.queue_commands(
+                                            MessageGlobalId {
+                                                message_id: message.message_id,
+                                                chat_id: message.chat.id,
+                                            },
+                                            user_id.clone(),
+                                            &text,
+                                        )
+                                    })
+                                {
+                                    self.bot.send_message(
+                                        &frankenstein::methods::SendMessageParams::builder()
+                                            .chat_id(message.chat.id)
+                                            .reply_parameters(
+                                                frankenstein::types::ReplyParameters::builder()
+                                                    .message_id(message.message_id)
+                                                    .build(),
+                                            )
+                                            .text(format!(
+                                                "There was error queuing commands: {}",
+                                                error_queuing_commands
+                                            ))
+                                            .build(),
+                                    )?;
+                                } else {
+                                    let sent_to_cantors_messages_ids = self
+                                        .lock_all_writes_and_read(|transaction| {
+                                            fallible_iterator::convert(
+                                                transaction
+                                                    .get_cantors_user_ids()?
+                                                    .iter()
+                                                    .map(|cantor_user_id| Ok(cantor_user_id)),
+                                            )
+                                            .map(|cantor_user_id| {
+                                                Ok(MessageGlobalId {
+                                                    message_id: self.forward_message(
+                                                        message.message_id,
+                                                        cantor_user_id.clone().into(),
+                                                    )?,
+                                                    chat_id: cantor_user_id.clone().into(),
+                                                })
+                                            })
+                                            .collect::<Vec<_>>()
+                                        })?;
+                                    self.lock_all_and_write(|transaction| {
+                                        transaction
+                                            .sweater_transaction
+                                            .chest_transaction
+                                            .users_set(
+                                                user_id.clone(),
+                                                path_segments!(
+                                                    "commands_queue",
+                                                    "sent_to_cantors_messages_ids"
+                                                ),
+                                                serde_json::to_value(
+                                                    &sent_to_cantors_messages_ids,
+                                                )?,
+                                            )?;
+                                        Ok(())
+                                    })?;
+                                    self.set_reaction(
+                                        &MessageGlobalId {
+                                            message_id: message.message_id,
+                                            chat_id: message.chat.id,
+                                        },
+                                        "✍️",
+                                    )?;
+                                }
                             }
                         }
                     };
-                    if let Some(text) = text_option {
-                        if let Err(error_queuing_commands) =
-                            self.lock_all_and_write(|transaction| {
-                                transaction.queue_commands(
-                                    MessageGlobalId {
-                                        message_id: message.message_id,
-                                        chat_id: message.chat.id,
-                                    },
-                                    user_id.clone(),
-                                    &text,
-                                )
-                            })
-                        {
-                            self.bot.send_message(
-                                &frankenstein::methods::SendMessageParams::builder()
-                                    .chat_id(message.chat.id)
-                                    .reply_parameters(
-                                        frankenstein::types::ReplyParameters::builder()
-                                            .message_id(message.message_id)
-                                            .build(),
-                                    )
-                                    .text(format!(
-                                        "There was error queuing commands: {}",
-                                        error_queuing_commands
-                                    ))
-                                    .build(),
-                            )?;
-                        } else {
-                            let sent_to_cantors_messages_ids =
-                                self.lock_all_writes_and_read(|transaction| {
-                                    fallible_iterator::convert(
-                                        transaction
-                                            .get_cantors_user_ids()?
-                                            .iter()
-                                            .map(|cantor_user_id| Ok(cantor_user_id)),
-                                    )
-                                    .map(|cantor_user_id| {
-                                        Ok(MessageGlobalId {
-                                            message_id: self.forward_message(
-                                                message.message_id,
-                                                cantor_user_id.clone().into(),
-                                            )?,
-                                            chat_id: cantor_user_id.clone().into(),
-                                        })
-                                    })
-                                    .collect::<Vec<_>>()
-                                })?;
-                            self.lock_all_and_write(|transaction| {
-                                transaction
-                                    .sweater_transaction
-                                    .chest_transaction
-                                    .users_set(
-                                        user_id.clone(),
-                                        path_segments!(
-                                            "commands_queue",
-                                            "sent_to_cantors_messages_ids"
-                                        ),
-                                        serde_json::to_value(&sent_to_cantors_messages_ids)?,
-                                    )?;
-                                Ok(())
-                            })?;
-                            self.set_reaction(
-                                &MessageGlobalId {
-                                    message_id: message.message_id,
-                                    chat_id: message.chat.id,
-                                },
-                                "✍️",
-                            )?;
-                        }
-                    }
                 }
                 if let frankenstein::updates::UpdateContent::MessageReaction(reaction) =
                     &update.content

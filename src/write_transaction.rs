@@ -4,6 +4,7 @@ use anyhow::Result;
 use fallible_iterator::FallibleIterator;
 use trove::path_segments;
 
+use crate::commands::Command;
 use crate::define_read_methods;
 use crate::read_transaction::ReadTransactionMethods;
 use crate::sweater;
@@ -84,5 +85,16 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
                 })?;
         }
         Ok(())
+    }
+
+    pub fn execute_command(&self, command: &Command) -> Result<impl serde::Serialize> {
+        match command {
+            Command::GetTheses(theses_ids) => Ok(fallible_iterator::convert(
+                theses_ids.iter().map(|thesis_id| {
+                    sweater::ReadTransactionMethods::get_thesis(self.sweater_transaction, thesis_id)
+                }),
+            )
+            .collect::<Vec<_>>()?),
+        }
     }
 }

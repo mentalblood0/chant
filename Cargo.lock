@@ -130,9 +130,9 @@ checksum = "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33"
 
 [[package]]
 name = "cc"
-version = "1.2.57"
+version = "1.2.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a0dd1ca384932ff3641c8718a02769f1698e7563dc6974ffd03346116310423"
+checksum = "e1e928d4b69e3077709075a938a05ffbedfa53a84c8f766efbf8220bb1ff60e1"
 dependencies = [
  "find-msvc-tools",
  "shlex",
@@ -153,6 +153,7 @@ dependencies = [
  "frankenstein",
  "nanorand",
  "pretty_assertions",
+ "regex",
  "serde",
  "serde-saphyr",
  "serde_json",
@@ -802,7 +803,7 @@ dependencies = [
 [[package]]
 name = "serde-saphyr"
 version = "0.0.22"
-source = "git+https://github.com/bourumir-wyngs/serde-saphyr#0e70aa1823f149175fe30c82876c6bd800f2edea"
+source = "git+https://github.com/bourumir-wyngs/serde-saphyr#c3ce7b50fdb0d4ecdcc379af195d7b53f2432958"
 dependencies = [
  "ahash",
  "annotate-snippets",
@@ -1035,9 +1036,9 @@ checksum = "b8c0a043c9540bae7c578c88f91dda8bd82e59ae27c21baca69c8b191aaf5a6e"
 
 [[package]]
 name = "uuid"
-version = "1.22.0"
+version = "1.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a68d3c8f01c0cfa54a75291d83601161799e4a89a39e0929f4b0354d88757a37"
+checksum = "5ac8b6f42ead25368cf5b098aeb3dc8a1a2c05a3eee8a9a1a68c640edbfc79d9"
 dependencies = [
  "getrandom 0.4.2",
  "js-sys",
@@ -1347,7 +1348,7 @@ dependencies = [
 [[package]]
 name = "wool"
 version = "0.1.0"
-source = "git+https://github.com/mentalblood0/wool#63e07385422b17af712c7881338904527cb59798"
+source = "git+https://github.com/mentalblood0/wool#9d443e0d614f1bc64014005d796be1b45fa837ff"
 dependencies = [
  "anyhow",
  "fallible-iterator",
