@@ -373,17 +373,9 @@ impl Chant {
 }
 
 fn main() -> Result<()> {
-    let config_path = std::env::args()
-        .nth(1)
-        .context("Usage: chant <config_path>")?;
-
-    let mut chant = Chant::new(
-        serde_saphyr::from_str(
-            &std::fs::read_to_string(&config_path)
-                .with_context(|| format!("Failed to open config file: {}", config_path))?,
-        )
-        .with_context(|| format!("Failed to parse config file: {}", config_path))?,
-    )?;
-
-    chant.run()
+    Chant::new(
+        serde_saphyr::from_reader(std::io::stdin())
+            .with_context(|| format!("Failed to parse configuration"))?,
+    )?
+    .run()
 }
