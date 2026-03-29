@@ -56,7 +56,7 @@ impl<'a> FallibleIterator for CommandsIterator<'a> {
             static COMMAND_FIRST_LINE_REGEX: std::sync::OnceLock<Regex> =
                 std::sync::OnceLock::new();
             let command_first_line_regex = COMMAND_FIRST_LINE_REGEX.get_or_init(|| {
-                Regex::new(r#"^ *(\+|-|#|\^|@) *$"#)
+                Regex::new(r#"^ *(\?) *$"#)
                     .with_context(|| {
                         "Can not compile regular expression for parsing first line of command"
                     })
@@ -73,15 +73,19 @@ impl<'a> FallibleIterator for CommandsIterator<'a> {
                             .map(|reference| {
                                 self.aliases_resolver.get_thesis_id_by_reference(&reference)
                             })
-                            .collect()?,
+                            .collect()
+                            .with_context(|| {
+                                format!(
+                                    "Can not parse {}-th paragraph {paragraph:?}",
+                                    paragraph_index + 1
+                                )
+                            })?,
                         ),
                         _ => {
                             return Err(anyhow!(
                                 "Unsupported operation character and lines count combination \
                                  ({:?}, {}) in first line {:?} of {}-th paragraph {:?}, supported \
-                                 combinations are ('+', 2) for adding text thesis, ('+', 4) for \
-                                 adding relation thesis, ('-', 2) for removing thesis, ('#', 3) \
-                                 for adding tag, ('^', 3) for removing tag",
+                                 combinations are ('?', 2..) for getting theses by references",
                                 operation_char,
                                 lines.len(),
                                 lines[0],

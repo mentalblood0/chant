@@ -105,7 +105,7 @@ impl Chant {
                 if let frankenstein::updates::UpdateContent::Message(message) = &update.content {
                     let user_id: trove::DocumentId = message.chat.id.into();
                     if let Some(ref message_text) = message.text {
-                        let reply_text = self.lock_all_and_write(|transaction| {
+                        let reply_text = match self.lock_all_and_write(|transaction| {
                             let commands = commands::CommandsIterator::new(
                                 message_text,
                                 &mut sweater::AliasesResolver {
@@ -122,7 +122,12 @@ impl Chant {
                                 )
                                 .collect::<Vec<_>>()?,
                             )?)
-                        })?;
+                        }) {
+                            Ok(reply_text) => reply_text,
+                            Err(error) => {
+                                format!("Error parsing and executing commands: {error:?}")
+                            }
+                        };
                         self.bot.send_message(
                             &frankenstein::methods::SendMessageParams::builder()
                                 .chat_id(message.chat.id)
