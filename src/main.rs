@@ -114,14 +114,13 @@ impl Chant {
                                 },
                             )
                             .collect::<Vec<_>>()?;
-                            Ok(serde_saphyr::to_string(
-                                &fallible_iterator::convert(
-                                    commands
-                                        .iter()
-                                        .map(|command| transaction.execute_command(command)),
-                                )
-                                .collect::<Vec<_>>()?,
-                            )?)
+                            let results = &fallible_iterator::convert(
+                                commands
+                                    .iter()
+                                    .map(|command| transaction.execute_command(command)),
+                            )
+                            .collect::<Vec<_>>()?;
+                            Ok(results.join("\n\n"))
                         }) {
                             Ok(reply_text) => reply_text,
                             Err(error) => {
