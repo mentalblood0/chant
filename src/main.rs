@@ -55,7 +55,7 @@ impl Chant {
                     sweater_transaction: sweater_write_transaction,
                 })
             })
-            .with_context(|| "Can not lock chest and initiate write transaction")
+            .context("Can not lock chest and initiate write transaction")
     }
 
     pub fn lock_all_writes_and_read<F, R>(&self, mut f: F) -> Result<R>
@@ -68,9 +68,7 @@ impl Chant {
                     sweater_transaction: &sweater_read_transaction,
                 })
             })
-            .with_context(|| {
-                "Can not lock all write operations on chest and initiate read transaction"
-            })
+            .context("Can not lock all write operations on chest and initiate read transaction")
     }
 
     pub fn get_file_id(message: &frankenstein::types::Message) -> Option<String> {
@@ -190,10 +188,16 @@ impl Chant {
                                             )
                                             .map(|cantor_user_id| {
                                                 Ok(MessageGlobalId {
-                                                    message_id: self.forward_message(
-                                                        message.message_id,
-                                                        cantor_user_id.clone().into(),
-                                                    )?,
+                                                    message_id: self.bot
+                                                                    .forward_message(
+                                                                        &frankenstein::methods::ForwardMessageParams::builder()
+                                                                            .chat_id(<trove::DocumentId as Into<i64>>::into(cantor_user_id.clone()))
+                                                                            .from_chat_id(message.chat.id)
+                                                                            .message_id(message.message_id)
+                                                                            .build(),
+                                                                    )?
+                                                                    .result
+                                                                    .message_id,
                                                     chat_id: cantor_user_id.clone().into(),
                                                 })
                                             })
@@ -272,7 +276,7 @@ impl Chant {
                                             )?
                                             .ok_or_else(|| anyhow!("Can not get commands queue"))?,
                                     )
-                                    .with_context(|| "Can not parse commands queue from JSON")?
+                                    .context("Can not parse commands queue from JSON")?
                                     .ok_or_else(|| {
                                         anyhow!("Expected queued commands but there is none")
                                     })?;
@@ -360,26 +364,9 @@ impl Chant {
         )?;
         Ok(())
     }
-
-    pub fn forward_message(&self, message_id: i32, to_user_id: i64) -> Result<i32> {
-        Ok(self
-            .bot
-            .forward_message(
-                &frankenstein::methods::ForwardMessageParams::builder()
-                    .chat_id(to_user_id)
-                    .from_chat_id(to_user_id)
-                    .message_id(message_id)
-                    .build(),
-            )?
-            .result
-            .message_id)
-    }
 }
 
 fn main() -> Result<()> {
-    Chant::new(
-        serde_saphyr::from_reader(std::io::stdin())
-            .with_context(|| format!("Failed to parse configuration"))?,
-    )?
-    .run()
+    Chant::new(serde_saphyr::from_reader(std::io::stdin()).context("Can not parse configuration")?)?
+        .run()
 }

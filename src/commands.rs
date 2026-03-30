@@ -29,7 +29,7 @@ impl<'a> CommandsIterator<'a> {
         static COMMANDS_SPLIT_REGEX: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
         let commands_split_regex = COMMANDS_SPLIT_REGEX.get_or_init(|| {
             Regex::new(r#"(\r?\n|\r){2,}"#)
-                .with_context(|| "Can not compile regular expression for commands splitting")
+                .context("Can not compile regular expression for commands splitting")
                 .unwrap()
         });
         Self {
@@ -57,9 +57,7 @@ impl<'a> FallibleIterator for CommandsIterator<'a> {
                 std::sync::OnceLock::new();
             let command_first_line_regex = COMMAND_FIRST_LINE_REGEX.get_or_init(|| {
                 Regex::new(r#"^ *(\?) *$"#)
-                    .with_context(|| {
-                        "Can not compile regular expression for parsing first line of command"
-                    })
+                    .context("Can not compile regular expression for parsing first line of command")
                     .unwrap()
             });
             if let Some(captures) = command_first_line_regex.captures(lines[0]) {
