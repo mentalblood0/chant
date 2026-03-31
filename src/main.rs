@@ -20,10 +20,28 @@ wool::define_sweater!(sweater(
 });
 
 #[derive(serde::Deserialize)]
+pub struct Bounds {
+    pub min: u16,
+    pub max: u16,
+}
+
+#[derive(serde::Deserialize)]
+pub struct BatchLimits {
+    pub bytes: Bounds,
+    pub commands: Bounds,
+}
+
+#[derive(serde::Deserialize)]
+pub struct Limits {
+    pub batch: BatchLimits,
+}
+
+#[derive(serde::Deserialize)]
 pub struct ChantConfig {
     pub sweater: sweater::SweaterConfig,
     pub token: String,
     pub users: Vec<User>,
+    pub limits: Limits,
 }
 
 pub struct Chant {
@@ -82,103 +100,60 @@ impl Chant {
         None
     }
 
-    pub fn run(&mut self) -> Result<()> {
-        let mut offset: i64 = 0;
-
-        loop {
-            let get_updates_params = frankenstein::methods::GetUpdatesParams::builder()
-                .allowed_updates(vec![
-                    frankenstein::types::AllowedUpdate::Message,
-                    frankenstein::types::AllowedUpdate::MessageReaction,
-                ])
-                .offset(offset)
-                .build();
-
-            let updates = self.bot.get_updates(&get_updates_params)?;
-
-            for update in updates.result {
-                // offset = update.update_id as i64 + 1;
-                // continue;
-                dbg!(&update);
-                if let frankenstein::updates::UpdateContent::Message(message) = &update.content {
-                    let user_id: trove::DocumentId = message.chat.id.into();
-                    if let Some(ref message_text) = message.text {
-                        let reply_text = match self.lock_all_and_write(|transaction| {
-                            let commands = commands::CommandsIterator::new(
-                                message_text,
-                                &mut sweater::AliasesResolver {
-                                    read_able_transaction: transaction.sweater_transaction,
-                                    known_aliases: BTreeMap::new(),
-                                },
-                            )
-                            .collect::<Vec<_>>()?;
-                            let results = &fallible_iterator::convert(
-                                commands
-                                    .iter()
-                                    .map(|command| transaction.execute_command(command)),
-                            )
-                            .collect::<Vec<_>>()?;
-                            Ok(results.join("\n\n"))
-                        }) {
-                            Ok(reply_text) => reply_text,
-                            Err(error) => {
-                                format!("Error parsing and executing commands: {error:?}")
-                            }
-                        };
-                        self.bot.send_message(
-                            &frankenstein::methods::SendMessageParams::builder()
-                                .chat_id(message.chat.id)
-                                .reply_parameters(
-                                    frankenstein::types::ReplyParameters::builder()
-                                        .message_id(message.message_id)
-                                        .build(),
-                                )
-                                .text(reply_text)
-                                .build(),
-                        )?;
-                    } else if let Some(file_id) = Self::get_file_id(message) {
-                        if let Ok(file) = self.bot.get_file(
-                            &frankenstein::methods::GetFileParams::builder()
-                                .file_id(file_id)
-                                .build(),
-                        ) {
-                            if let Some(file_path) = file.result.file_path {
-                                let url = format!(
-                                    "https://api.telegram.org/file/bot{}/{}",
-                                    self.config.token, file_path
-                                );
-                                let text = frankenstein::ureq::get(&url)
-                                    .call()?
-                                    .into_body()
-                                    .read_to_string()?;
-                                if let Err(error_queuing_commands) =
-                                    self.lock_all_and_write(|transaction| {
-                                        transaction.queue_commands(
-                                            MessageGlobalId {
-                                                message_id: message.message_id,
-                                                chat_id: message.chat.id,
-                                            },
-                                            user_id.clone(),
-                                            &text,
-                                        )
-                                    })
-                                {
-                                    self.bot.send_message(
-                                        &frankenstein::methods::SendMessageParams::builder()
-                                            .chat_id(message.chat.id)
-                                            .reply_parameters(
-                                                frankenstein::types::ReplyParameters::builder()
-                                                    .message_id(message.message_id)
-                                                    .build(),
-                                            )
-                                            .text(format!(
-                                                "There was error queuing commands: {}",
-                                                error_queuing_commands
-                                            ))
-                                            .build(),
-                                    )?;
-                                } else {
-                                    let sent_to_cantors_messages_ids = self
+    pub fn process_message_document(
+        &mut self,
+        message: &frankenstein::types::Message,
+    ) -> Result<()> {
+        if let Some(ref document) = message.document {
+            if let Some(file_size) = document.file_size {
+                if file_size > self.config.limits.batch.bytes.max as u64 {
+                    return Result::Err(anyhow!(
+                        "Can not process document file with size {file_size} bytes > {} bytes",
+                        self.config.limits.batch.bytes.max
+                    ));
+                }
+                if file_size < self.config.limits.batch.bytes.min as u64 {
+                    return Result::Err(anyhow!(
+                        "Can not process document file with size {file_size} bytes < {} bytes",
+                        self.config.limits.batch.bytes.min
+                    ));
+                }
+            }
+            if let Some(ref file_name) = document.file_name {
+                if file_name.ends_with(".txt") {
+                    let file_id = &document.file_id;
+                    if let Ok(file) = self.bot.get_file(
+                        &frankenstein::methods::GetFileParams::builder()
+                            .file_id(file_id)
+                            .build(),
+                    ) {
+                        if let Some(file_path) = file.result.file_path {
+                            let url = format!(
+                                "https://api.telegram.org/file/bot{}/{}",
+                                self.config.token, file_path
+                            );
+                            let text = frankenstein::ureq::get(&url)
+                                .call()?
+                                .into_body()
+                                .read_to_string()?;
+                            if let Err(error_queuing_commands) =
+                                self.lock_all_and_write(|transaction| {
+                                    transaction.queue_commands(
+                                        MessageGlobalId {
+                                            message_id: message.message_id,
+                                            chat_id: message.chat.id,
+                                        },
+                                        message.chat.id.into(),
+                                        &text,
+                                    )
+                                })
+                            {
+                                return Result::Err(anyhow!(
+                                    "There was error queuing commands: {}",
+                                    error_queuing_commands
+                                ));
+                            } else {
+                                let sent_to_cantors_messages_ids = self
                                         .lock_all_writes_and_read(|transaction| {
                                             fallible_iterator::convert(
                                                 transaction
@@ -203,33 +178,123 @@ impl Chant {
                                             })
                                             .collect::<Vec<_>>()
                                         })?;
-                                    self.lock_all_and_write(|transaction| {
-                                        transaction
-                                            .sweater_transaction
-                                            .chest_transaction
-                                            .users_set(
-                                                user_id.clone(),
-                                                path_segments!(
-                                                    "commands_queue",
-                                                    "sent_to_cantors_messages_ids"
-                                                ),
-                                                serde_json::to_value(
-                                                    &sent_to_cantors_messages_ids,
-                                                )?,
-                                            )?;
-                                        Ok(())
-                                    })?;
-                                    self.set_reaction(
-                                        &MessageGlobalId {
-                                            message_id: message.message_id,
-                                            chat_id: message.chat.id,
-                                        },
-                                        "✍️",
-                                    )?;
-                                }
+                                self.lock_all_and_write(|transaction| {
+                                    transaction
+                                        .sweater_transaction
+                                        .chest_transaction
+                                        .users_set(
+                                            message.chat.id.into(),
+                                            path_segments!(
+                                                "commands_queue",
+                                                "sent_to_cantors_messages_ids"
+                                            ),
+                                            serde_json::to_value(&sent_to_cantors_messages_ids)?,
+                                        )?;
+                                    Ok(())
+                                })?;
+                                self.set_reaction(
+                                    &MessageGlobalId {
+                                        message_id: message.message_id,
+                                        chat_id: message.chat.id,
+                                    },
+                                    "✍️",
+                                )?;
                             }
                         }
-                    };
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn process_message_text(&mut self, message: &frankenstein::types::Message) -> Result<()> {
+        if let Some(ref message_text) = message.text {
+            self.lock_all_and_write(|transaction| {
+                let commands = commands::CommandsIterator::new(
+                    message_text,
+                    &mut sweater::AliasesResolver {
+                        read_able_transaction: transaction.sweater_transaction,
+                        known_aliases: BTreeMap::new(),
+                    },
+                )
+                .collect::<Vec<_>>()?;
+                let results = &fallible_iterator::convert(
+                    commands
+                        .iter()
+                        .map(|command| transaction.execute_command(command)),
+                )
+                .collect::<Vec<_>>()?;
+                Ok(results.join("\n\n"))
+            })
+            .context("Error parsing and executing commands")?;
+        }
+        Ok(())
+    }
+
+    pub fn reply_with_error_text_if_error<T>(
+        &self,
+        message: &frankenstein::types::Message,
+        message_processing_result: Result<T>,
+    ) -> Result<()>
+    where
+        T: std::fmt::Debug,
+    {
+        if let Err(error) = message_processing_result {
+            self.bot.send_message(
+                &frankenstein::methods::SendMessageParams::builder()
+                    .chat_id(message.chat.id)
+                    .reply_parameters(
+                        frankenstein::types::ReplyParameters::builder()
+                            .message_id(message.message_id)
+                            .build(),
+                    )
+                    .text(format!(
+                        "There was a error while processing your message: {error:?}"
+                    ))
+                    .build(),
+            )?;
+        }
+        Ok(())
+    }
+
+    pub fn run(&mut self) -> Result<()> {
+        let mut offset: i64 = 0;
+
+        loop {
+            let get_updates_params = frankenstein::methods::GetUpdatesParams::builder()
+                .allowed_updates(vec![
+                    frankenstein::types::AllowedUpdate::Message,
+                    frankenstein::types::AllowedUpdate::MessageReaction,
+                ])
+                .offset(offset)
+                .build();
+
+            let updates = self.bot.get_updates(&get_updates_params)?;
+
+            for update in updates.result {
+                // offset = update.update_id as i64 + 1;
+                // continue;
+                dbg!(&update);
+                if let frankenstein::updates::UpdateContent::Message(message) = &update.content {
+                    {
+                        let message_document_processing_result = self
+                            .process_message_document(message)
+                            .context("Can not process message document");
+                        self.reply_with_error_text_if_error(
+                            message,
+                            message_document_processing_result,
+                        )?;
+                    }
+                    {
+                        let message_text_processing_result = self
+                            .process_message_text(message)
+                            .context("Can not process message text");
+                        self.reply_with_error_text_if_error(
+                            message,
+                            message_text_processing_result,
+                        )?;
+                    }
                 }
                 if let frankenstein::updates::UpdateContent::MessageReaction(reaction) =
                     &update.content

@@ -2,6 +2,14 @@ token: insert your telegram bot token here
 users:
   - telegram_id: 810722109
     role: Cantor
+limits:
+  batch:
+    bytes:
+      min: 32
+      max: 4096
+    commands:
+      min: 1
+      max: 64
 sweater:
   supported_relations_kinds:
     - answers
