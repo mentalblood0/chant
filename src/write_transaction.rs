@@ -87,7 +87,7 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
         Ok(())
     }
 
-    pub fn execute_command(&self, command: &Command) -> Result<String> {
+    pub fn execute_command(&mut self, command: &Command) -> Result<String> {
         match command {
             Command::GetTheses(theses_ids) => Ok(fallible_iterator::convert(
                 theses_ids.iter().map(|thesis_id| {
@@ -112,6 +112,18 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
             })
             .collect::<Vec<_>>()?
             .join("\n\n")),
+            Command::AddOfferers(users) => {
+                self.add_users(users)?;
+                Ok("Added".to_string())
+            }
+            Command::PromoteToCantor(user_id) => {
+                self.sweater_transaction.chest_transaction.users_set(
+                    user_id.clone(),
+                    trove::path_segments!("role"),
+                    serde_json::to_value(Role::Offerer)?,
+                )?;
+                Ok("Promoted".to_string())
+            }
         }
     }
 }

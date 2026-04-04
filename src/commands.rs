@@ -4,16 +4,21 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::sweater;
+use crate::user::{Role, User};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum Command {
     GetTheses(Vec<trove::DocumentId>),
+    AddOfferers(Vec<User>),
+    PromoteToCantor(trove::DocumentId),
 }
 
 impl Command {
     pub fn validated(&self) -> Result<&Self> {
         match self {
             Command::GetTheses(_) => {}
+            Command::AddOfferers(_) => {}
+            Command::PromoteToCantor(_) => {}
         }
         Ok(self)
     }
@@ -78,6 +83,28 @@ impl<'a> FallibleIterator for CommandsIterator<'a> {
                                     paragraph_index + 1
                                 )
                             })?,
+                        ),
+                        ('+', 2..) => {
+                            let mut result = vec![];
+                            for line in lines[1..].iter() {
+                                result.push(User {
+                                    telegram_id: line.parse::<i64>()?,
+                                    role: Role::Offerer,
+                                    commands_queue: None,
+                                });
+                            }
+                            Command::AddOfferers(result)
+                        }
+                        ('^', 2) => Command::PromoteToCantor(
+                            lines[1]
+                                .parse::<i64>()
+                                .with_context(|| {
+                                    format!(
+                                        "Can not parse user telegram id at line 2 of command \
+                                         {paragraph}"
+                                    )
+                                })?
+                                .into(),
                         ),
                         _ => {
                             return Err(anyhow!(
