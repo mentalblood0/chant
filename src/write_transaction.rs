@@ -96,16 +96,34 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
             )
             .map(|thesis_option| {
                 Ok(if let Some(thesis) = thesis_option {
-                    match thesis.content {
-                        sweater::Content::Text(text) => text.composed(),
-                        sweater::Content::Relation(relation) => format!(
-                            "{} {} {}",
-                            relation.from.to_string(),
-                            relation.kind.0,
-                            relation.to.to_string()
-                        )
-                        .to_string(),
-                    }
+                    format!(
+                        "{}\ntags:\n{}\nreferenced in:\n{}",
+                        match thesis.content {
+                            sweater::Content::Text(ref text) => text.composed(),
+                            sweater::Content::Relation(ref relation) => format!(
+                                "{} {} {}",
+                                relation.from.to_string(),
+                                relation.kind.0,
+                                relation.to.to_string()
+                            )
+                            .to_string(),
+                        },
+                        thesis
+                            .tags
+                            .iter()
+                            .cloned()
+                            .map(|tag| tag.0)
+                            .collect::<Vec<_>>()
+                            .join("\n"),
+                        sweater::ReadTransactionMethods::where_referenced(
+                            self.sweater_transaction,
+                            &thesis.id()?
+                        )?
+                        .into_iter()
+                        .map(|thesis_id| thesis_id.to_string())
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                    )
                 } else {
                     "Not found".to_string()
                 })
