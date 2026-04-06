@@ -4,8 +4,12 @@
 
 Telegram collaboration interface to [wool](https://github.com/mentalblood0/wool) theses storage
 
-## Workflow
+## Overview
 
-- the offerer or the cantor sends message with commands batch to the bot
-- the bot forwards this message to all cantors
-- when any cantor likes message forwarded to her, bot executes corresponding commands batch, deletes all corresponding forwarded messages and likes source message
+There are two user roles available: Offerer and Cantor
+
+An Offerer can request execution of some storage-altering commands by sending them in file with `.txt` extension. Execution of storage-altering commands is postponed until approval from a user with Cantor role. Offerer can also execute read commands: get full thesis information by it's identifier or alias, search theses by tags
+
+A Cantor is an Offerer which also receives approval requests for storage-altering commands. These requests sent by bot immediately after bot received them from an Offerer. Approvement done by just liking the corresponding message. Disapprovement done by just disliking the corresponding message
+
+For storage-altering commands syntax see [wool readme](https://github.com/mentalblood0/wool#commands)
