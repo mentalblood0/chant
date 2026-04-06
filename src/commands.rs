@@ -8,7 +8,8 @@ use crate::user::{Role, User};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum Command {
-    GetTheses(Vec<trove::DocumentId>),
+    GetThesesByIds(Vec<trove::DocumentId>),
+    GetThesesByTags(Vec<sweater::Tag>),
     AddOfferers(Vec<User>),
     PromoteToCantor(trove::DocumentId),
 }
@@ -20,7 +21,12 @@ pub trait RoleRestricted {
 impl Command {
     pub fn validated(&self) -> Result<&Self> {
         match self {
-            Command::GetTheses(_) => {}
+            Command::GetThesesByIds(_) => {}
+            Command::GetThesesByTags(tags) => {
+                for tag in tags {
+                    tag.validated()?;
+                }
+            }
             Command::AddOfferers(_) => {}
             Command::PromoteToCantor(_) => {}
         }
@@ -29,10 +35,13 @@ impl Command {
 
     pub fn is_allowed_for(&self, role: &Role) -> bool {
         match (role, self) {
-            (Role::Offerer, Command::GetTheses(_)) => true,
+            (Role::Offerer, Command::GetThesesByIds(_)) => true,
+            (Role::Offerer, Command::GetThesesByTags(_)) => true,
             (Role::Offerer, Command::AddOfferers(_)) => false,
             (Role::Offerer, Command::PromoteToCantor(_)) => false,
-            (Role::Cantor, Command::GetTheses(_)) => true,
+
+            (Role::Cantor, Command::GetThesesByIds(_)) => true,
+            (Role::Cantor, Command::GetThesesByTags(_)) => true,
             (Role::Cantor, Command::AddOfferers(_)) => true,
             (Role::Cantor, Command::PromoteToCantor(_)) => true,
         }
@@ -84,7 +93,7 @@ impl<'a> FallibleIterator for CommandsIterator<'a> {
                 let operation_char = captures[1].chars().next().unwrap();
                 Ok(Some(
                     match (operation_char, lines.len()) {
-                        ('?', 2..) => Command::GetTheses(
+                        ('?', 2..) => Command::GetThesesByIds(
                             fallible_iterator::convert(
                                 lines[1..].iter().map(|line| sweater::Reference::new(line)),
                             )
@@ -98,6 +107,12 @@ impl<'a> FallibleIterator for CommandsIterator<'a> {
                                     paragraph_index + 1
                                 )
                             })?,
+                        ),
+                        ('#', 2..) => Command::GetThesesByTags(
+                            lines[1..]
+                                .iter()
+                                .map(|line| sweater::Tag(line.to_string()))
+                                .collect(),
                         ),
                         ('+', 2..) => {
                             let mut result = vec![];

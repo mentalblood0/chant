@@ -89,47 +89,39 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
 
     pub fn execute_command(&mut self, command: &Command) -> Result<String> {
         match command {
-            Command::GetTheses(theses_ids) => Ok(fallible_iterator::convert(
+            Command::GetThesesByIds(theses_ids) => Ok(fallible_iterator::convert(
                 theses_ids.iter().map(|thesis_id| {
                     sweater::ReadTransactionMethods::get_thesis(self.sweater_transaction, thesis_id)
                 }),
             )
             .map(|thesis_option| {
                 Ok(if let Some(thesis) = thesis_option {
-                    format!(
-                        "{}\ntags:\n{}\nreferenced in:\n{}",
-                        match thesis.content {
-                            sweater::Content::Text(ref text) => text.composed(),
-                            sweater::Content::Relation(ref relation) => format!(
-                                "{} {} {}",
-                                relation.from.to_string(),
-                                relation.kind.0,
-                                relation.to.to_string()
-                            )
-                            .to_string(),
-                        },
-                        thesis
-                            .tags
-                            .iter()
-                            .cloned()
-                            .map(|tag| tag.0)
-                            .collect::<Vec<_>>()
-                            .join("\n"),
-                        sweater::ReadTransactionMethods::where_referenced(
-                            self.sweater_transaction,
-                            &thesis.id()?
-                        )?
-                        .into_iter()
-                        .map(|thesis_id| thesis_id.to_string())
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                    )
+                    self.format_thesis(&thesis)?
                 } else {
                     "Not found".to_string()
                 })
             })
             .collect::<Vec<_>>()?
             .join("\n\n")),
+            Command::GetThesesByTags(tags) => {
+                Ok(sweater::ReadTransactionMethods::iter_theses_ids_by_tags(
+                    self.sweater_transaction,
+                    &tags,
+                    &vec![],
+                    None,
+                )?
+                .map(|thesis_id| {
+                    self.format_thesis(
+                        &sweater::ReadTransactionMethods::get_thesis(
+                            self.sweater_transaction,
+                            &thesis_id,
+                        )?
+                        .unwrap(),
+                    )
+                })
+                .collect::<Vec<_>>()?
+                .join("\n\n"))
+            }
             Command::AddOfferers(users) => {
                 self.add_users(users)?;
                 Ok("Added".to_string())
