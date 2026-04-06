@@ -13,6 +13,10 @@ pub enum Command {
     PromoteToCantor(trove::DocumentId),
 }
 
+pub trait RoleRestricted {
+    fn is_allowed_for(&self, role: &Role) -> bool;
+}
+
 impl Command {
     pub fn validated(&self) -> Result<&Self> {
         match self {
@@ -21,6 +25,17 @@ impl Command {
             Command::PromoteToCantor(_) => {}
         }
         Ok(self)
+    }
+
+    pub fn is_allowed_for(&self, role: &Role) -> bool {
+        match (role, self) {
+            (Role::Offerer, Command::GetTheses(_)) => true,
+            (Role::Offerer, Command::AddOfferers(_)) => false,
+            (Role::Offerer, Command::PromoteToCantor(_)) => false,
+            (Role::Cantor, Command::GetTheses(_)) => true,
+            (Role::Cantor, Command::AddOfferers(_)) => true,
+            (Role::Cantor, Command::PromoteToCantor(_)) => true,
+        }
     }
 }
 

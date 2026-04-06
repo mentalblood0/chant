@@ -11,7 +11,7 @@ use frankenstein::TelegramApi;
 use trove::path_segments;
 
 use crate::read_transaction::{ReadTransaction, ReadTransactionMethods};
-use crate::user::{MessageGlobalId, User};
+use crate::user::{MessageGlobalId, Role, User};
 use crate::write_transaction::WriteTransaction;
 
 wool::define_sweater!(sweater(
@@ -208,7 +208,11 @@ impl Chant {
         Ok(())
     }
 
-    pub fn process_message_text(&mut self, message: &frankenstein::types::Message) -> Result<()> {
+    pub fn process_message_text(
+        &mut self,
+        message: &frankenstein::types::Message,
+        user_role: &Role,
+    ) -> Result<()> {
         if let Some(ref message_text) = message.text {
             self.lock_all_and_write(|transaction| {
                 let commands = commands::CommandsIterator::new(
@@ -219,6 +223,14 @@ impl Chant {
                     },
                 )
                 .collect::<Vec<_>>()?;
+                for command in commands.iter() {
+                    if !command.is_allowed_for(user_role) {
+                        return Err(anyhow!(
+                            "Execution of command {command:?} not allowed for user with role \
+                             {user_role:?}"
+                        ));
+                    };
+                }
                 let results = &fallible_iterator::convert(
                     commands
                         .iter()
@@ -277,23 +289,35 @@ impl Chant {
                 // continue;
                 dbg!(&update);
                 if let frankenstein::updates::UpdateContent::Message(message) = &update.content {
+                    if let Some(message_user_json_value) =
+                        self.lock_all_writes_and_read(|transaction| {
+                            transaction
+                                .sweater_transaction
+                                .chest_transaction
+                                .users_get(&message.chat.id.into(), &vec![])
+                        })?
                     {
-                        let message_document_processing_result = self
-                            .process_message_document(message)
-                            .context("Can not process message document");
-                        self.reply_with_error_text_if_error(
-                            message,
-                            message_document_processing_result,
-                        )?;
-                    }
-                    {
-                        let message_text_processing_result = self
-                            .process_message_text(message)
-                            .context("Can not process message text");
-                        self.reply_with_error_text_if_error(
-                            message,
-                            message_text_processing_result,
-                        )?;
+                        let message_user = serde_json::from_value::<User>(message_user_json_value)?;
+                        {
+                            let message_document_processing_result = self
+                                .process_message_document(message)
+                                .context("Can not process message document");
+                            self.reply_with_error_text_if_error(
+                                message,
+                                message_document_processing_result,
+                            )?;
+                        }
+                        {
+                            let message_text_processing_result = self
+                                .process_message_text(message, &message_user.role)
+                                .context("Can not process message text");
+                            self.reply_with_error_text_if_error(
+                                message,
+                                message_text_processing_result,
+                            )?;
+                        }
+                    } else {
+                        continue;
                     }
                 }
                 if let frankenstein::updates::UpdateContent::MessageReaction(reaction) =
