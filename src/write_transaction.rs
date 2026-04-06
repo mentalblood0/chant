@@ -120,7 +120,7 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
                 self.sweater_transaction.chest_transaction.users_set(
                     user_id.clone(),
                     trove::path_segments!("role"),
-                    serde_json::to_value(Role::Offerer)?,
+                    serde_json::to_value(Role::Cantor)?,
                 )?;
                 Ok("Promoted".to_string())
             }
