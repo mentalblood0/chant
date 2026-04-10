@@ -214,32 +214,44 @@ impl Chant {
         user_role: &Role,
     ) -> Result<()> {
         if let Some(ref message_text) = message.text {
-            self.lock_all_and_write(|transaction| {
-                let commands = commands::CommandsIterator::new(
-                    message_text,
-                    &mut sweater::AliasesResolver {
-                        read_able_transaction: transaction.sweater_transaction,
-                        known_aliases: BTreeMap::new(),
-                    },
-                )
-                .collect::<Vec<_>>()?;
-                for command in commands.iter() {
-                    if !command.is_allowed_for(user_role) {
-                        return Err(anyhow!(
-                            "Execution of command {command:?} not allowed for user with role \
-                             {user_role:?}"
-                        ));
-                    };
-                }
-                let results = &fallible_iterator::convert(
-                    commands
-                        .iter()
-                        .map(|command| transaction.execute_command(command)),
-                )
-                .collect::<Vec<_>>()?;
-                Ok(results.join("\n\n"))
-            })
-            .context("Error parsing and executing commands")?;
+            let reply_text = self
+                .lock_all_and_write(|transaction| {
+                    let commands = commands::CommandsIterator::new(
+                        message_text,
+                        &mut sweater::AliasesResolver {
+                            read_able_transaction: transaction.sweater_transaction,
+                            known_aliases: BTreeMap::new(),
+                        },
+                    )
+                    .collect::<Vec<_>>()?;
+                    for command in commands.iter() {
+                        if !command.is_allowed_for(user_role) {
+                            return Err(anyhow!(
+                                "Execution of command {command:?} not allowed for user with role \
+                                 {user_role:?}"
+                            ));
+                        };
+                    }
+                    let results = &fallible_iterator::convert(
+                        commands
+                            .iter()
+                            .map(|command| transaction.execute_command(command)),
+                    )
+                    .collect::<Vec<_>>()?;
+                    Ok(results.join("\n\n"))
+                })
+                .context("Error parsing and executing commands")?;
+            self.bot.send_message(
+                &frankenstein::methods::SendMessageParams::builder()
+                    .chat_id(message.chat.id)
+                    .reply_parameters(
+                        frankenstein::types::ReplyParameters::builder()
+                            .message_id(message.message_id)
+                            .build(),
+                    )
+                    .text(reply_text)
+                    .build(),
+            )?;
         }
         Ok(())
     }
@@ -287,7 +299,6 @@ impl Chant {
             for update in updates.result {
                 // offset = update.update_id as i64 + 1;
                 // continue;
-                dbg!(&update);
                 if let frankenstein::updates::UpdateContent::Message(message) = &update.content {
                     if let Some(message_user_json_value) =
                         self.lock_all_writes_and_read(|transaction| {
