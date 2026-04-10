@@ -15,6 +15,7 @@ An Offerer can request execution of some storage-altering commands by sending th
 #### In-message commands
 
 `/reference one_reference_to_search_by`
+
 `/tags one or more some tags to search by`
 
 Reference is either thesis identifier or thesis alias
@@ -30,6 +31,7 @@ A Cantor is an Offerer which also receives approval requests for storage-alterin
 Cantor also have some specific in-message commands:
 
 `/add_offerers one or more telegram_user identifiers`
+
 `/promote_to_cantor one_offerer_telegram_user_identifier`
 
 Telegram user identifier is an integer number, i.e. `810722109`
