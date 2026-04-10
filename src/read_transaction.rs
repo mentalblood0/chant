@@ -32,10 +32,23 @@ macro_rules! define_read_methods {
                 .collect()
         }
 
-        fn format_thesis_id(&self, reference_text: &String) -> String {
-            format!(
-                "[{}](https://t.me/mentalblood_test_bot?start=reference_{})",
-                reference_text, reference_text
+        fn format_thesis_id(&self, thesis_id: &trove::DocumentId) -> Result<String> {
+            let thesis_id_string = thesis_id.to_string();
+            Ok(
+                if let Some(alias) = &sweater::ReadTransactionMethods::get_alias_by_thesis_id(
+                    self.sweater_transaction,
+                    &thesis_id,
+                )? {
+                    format!(
+                        "[{}](https://t.me/mentalblood_test_bot?start=reference_{})",
+                        alias.0, thesis_id_string
+                    )
+                } else {
+                    format!(
+                        "[{}](https://t.me/mentalblood_test_bot?start=reference_{})",
+                        thesis_id_string, thesis_id_string
+                    )
+                },
             )
         }
 
@@ -63,9 +76,9 @@ macro_rules! define_read_methods {
                     sweater::Content::Text(ref text) => text.composed(),
                     sweater::Content::Relation(ref relation) => format!(
                         "{} {} {}",
-                        self.format_thesis_id(&relation.from.to_string()),
+                        self.format_thesis_id(&relation.from)?,
                         relation.kind.0,
-                        self.format_thesis_id(&relation.to.to_string()),
+                        self.format_thesis_id(&relation.to)?,
                     )
                     .to_string(),
                 })
@@ -83,13 +96,15 @@ macro_rules! define_read_methods {
                 result.push_str(&format!("\ntagged with {}", tags_text));
             }
             let references_text = telegram_escape::tg_escape(
-                &sweater::ReadTransactionMethods::where_referenced(
-                    self.sweater_transaction,
-                    &thesis.id()?,
-                )?
-                .into_iter()
-                .map(|thesis_id| self.format_thesis_id(&thesis_id.to_string()))
-                .collect::<Vec<_>>()
+                &fallible_iterator::convert(
+                    sweater::ReadTransactionMethods::where_referenced(
+                        self.sweater_transaction,
+                        &thesis.id()?,
+                    )?
+                    .into_iter()
+                    .map(|thesis_id| self.format_thesis_id(&thesis_id)),
+                )
+                .collect::<Vec<_>>()?
                 .join(", "),
             );
             if !references_text.is_empty() {
@@ -103,9 +118,9 @@ macro_rules! define_read_methods {
 pub trait ReadTransactionMethods<'a> {
     fn is_queue_full(&self, user_telegram_id: i64) -> Result<bool>;
     fn get_cantors_user_ids(&self) -> Result<Vec<trove::DocumentId>>;
-    fn format_thesis(&self, thesis: &sweater::Thesis) -> Result<String>;
-    fn format_thesis_id(&self, reference_text: &String) -> String;
+    fn format_thesis_id(&self, thesis_id: &trove::DocumentId) -> Result<String>;
     fn format_tag(&self, tag_text: &String) -> String;
+    fn format_thesis(&self, thesis: &sweater::Thesis) -> Result<String>;
 }
 
 impl<'a> ReadTransactionMethods<'a> for ReadTransaction<'a> {
