@@ -34,4 +34,4 @@ Cantor also have some specific in-message commands:
 
 `/promote_to_cantor one_offerer_telegram_user_identifier`
 
-Telegram user identifier is an integer number, i.e. `810722109`
+Telegram user identifier is an integer number, e.g. `810722109`
