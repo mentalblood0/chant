@@ -30,7 +30,7 @@ A Cantor is an Offerer which also receives approval requests for storage-alterin
 
 Cantor also have some specific in-message commands:
 
-`/add_offerers one or more telegram_user identifiers`
+`/add_offerers one or more telegram user identifiers`
 
 `/promote_to_cantor one_offerer_telegram_user_identifier`
 
