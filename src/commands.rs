@@ -1,14 +1,12 @@
-use anyhow::{anyhow, Context, Error, Result};
-use fallible_iterator::FallibleIterator;
-use regex::Regex;
+use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::sweater;
+use crate::sweater::{self, AliasesResolver};
 use crate::user::{Role, User};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum Command {
-    GetThesesByIds(Vec<trove::DocumentId>),
+    GetThesisByReference(trove::DocumentId),
     GetThesesByTags(Vec<sweater::Tag>),
     AddOfferers(Vec<User>),
     PromoteToCantor(trove::DocumentId),
@@ -21,7 +19,7 @@ pub trait RoleRestricted {
 impl Command {
     pub fn validated(&self) -> Result<&Self> {
         match self {
-            Command::GetThesesByIds(_) => {}
+            Command::GetThesisByReference(_) => {}
             Command::GetThesesByTags(tags) => {
                 for tag in tags {
                     tag.validated()?;
@@ -35,140 +33,92 @@ impl Command {
 
     pub fn is_allowed_for(&self, role: &Role) -> bool {
         match (role, self) {
-            (Role::Offerer, Command::GetThesesByIds(_)) => true,
+            (Role::Offerer, Command::GetThesisByReference(_)) => true,
             (Role::Offerer, Command::GetThesesByTags(_)) => true,
             (Role::Offerer, Command::AddOfferers(_)) => false,
             (Role::Offerer, Command::PromoteToCantor(_)) => false,
 
-            (Role::Cantor, Command::GetThesesByIds(_)) => true,
+            (Role::Cantor, Command::GetThesisByReference(_)) => true,
             (Role::Cantor, Command::GetThesesByTags(_)) => true,
             (Role::Cantor, Command::AddOfferers(_)) => true,
             (Role::Cantor, Command::PromoteToCantor(_)) => true,
         }
     }
-}
 
-pub struct CommandsIterator<'a> {
-    paragraphs_iterator: Box<dyn FallibleIterator<Item = (usize, &'a str), Error = Error> + 'a>,
-    aliases_resolver: &'a mut sweater::AliasesResolver<'a>,
-}
-
-impl<'a> CommandsIterator<'a> {
-    pub fn new(input: &'a str, aliases_resolver: &'a mut sweater::AliasesResolver<'a>) -> Self {
-        static COMMANDS_SPLIT_REGEX: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
-        let commands_split_regex = COMMANDS_SPLIT_REGEX.get_or_init(|| {
-            Regex::new(r#"(\r?\n|\r){2,}"#)
-                .context("Can not compile regular expression for commands splitting")
-                .unwrap()
-        });
-        Self {
-            aliases_resolver: aliases_resolver,
-            paragraphs_iterator: Box::new(fallible_iterator::convert(
-                commands_split_regex
-                    .split(input)
-                    .map(|paragraph| paragraph.trim())
-                    .filter(|paragraph| !paragraph.is_empty())
-                    .enumerate()
-                    .map(|index_and_paragraph| Ok(index_and_paragraph)),
-            )),
-        }
+    pub fn from_text(text: &String, aliases_resolver: &AliasesResolver) -> Result<Command> {
+        let command_text_splitted = text.split(' ').collect::<Vec<_>>();
+        Self::from_splitted_text(command_text_splitted, aliases_resolver)
     }
-}
 
-impl<'a> FallibleIterator for CommandsIterator<'a> {
-    type Item = Command;
-    type Error = Error;
-
-    fn next(&mut self) -> Result<Option<Self::Item>> {
-        if let Some((paragraph_index, paragraph)) = self.paragraphs_iterator.next()? {
-            let lines = paragraph.split('\n').collect::<Vec<_>>();
-            static COMMAND_FIRST_LINE_REGEX: std::sync::OnceLock<Regex> =
-                std::sync::OnceLock::new();
-            let command_first_line_regex = COMMAND_FIRST_LINE_REGEX.get_or_init(|| {
-                Regex::new(r#"^ *(\?) *$"#)
-                    .context("Can not compile regular expression for parsing first line of command")
-                    .unwrap()
-            });
-            if let Some(captures) = command_first_line_regex.captures(lines[0]) {
-                let operation_char = captures[1].chars().next().unwrap();
-                Ok(Some(
-                    match (operation_char, lines.len()) {
-                        ('?', 2..) => Command::GetThesesByIds(
-                            fallible_iterator::convert(
-                                lines[1..].iter().map(|line| sweater::Reference::new(line)),
-                            )
-                            .map(|reference| {
-                                self.aliases_resolver.get_thesis_id_by_reference(&reference)
-                            })
-                            .collect()
-                            .with_context(|| {
-                                format!(
-                                    "Can not parse {}-th paragraph {paragraph:?}",
-                                    paragraph_index + 1
-                                )
-                            })?,
-                        ),
-                        ('#', 2..) => Command::GetThesesByTags(
-                            lines[1..]
-                                .iter()
-                                .map(|line| sweater::Tag(line.to_string()))
-                                .collect(),
-                        ),
-                        ('+', 2..) => {
-                            let mut result = vec![];
-                            for line in lines[1..].iter() {
-                                result.push(User {
-                                    telegram_id: line.parse::<i64>()?,
-                                    role: Role::Offerer,
-                                    commands_queue: None,
-                                });
-                            }
-                            Command::AddOfferers(result)
-                        }
-                        ('^', 2) => Command::PromoteToCantor(
-                            lines[1]
-                                .parse::<i64>()
-                                .with_context(|| {
-                                    format!(
-                                        "Can not parse user telegram id at line 2 of command \
-                                         {paragraph}"
-                                    )
-                                })?
-                                .into(),
-                        ),
-                        _ => {
-                            return Err(anyhow!(
-                                "Unsupported operation character and lines count combination \
-                                 ({:?}, {}) in first line {:?} of {}-th paragraph {:?}, supported \
-                                 combinations are ('?', 2..) for getting theses by references",
-                                operation_char,
-                                lines.len(),
-                                lines[0],
-                                paragraph_index + 1,
-                                paragraph
-                            ));
-                        }
-                    }
-                    .validated()
-                    .with_context(|| {
-                        format!(
-                            "Invalid command parsed from {}-th paragraph {:?}",
-                            paragraph_index + 1,
-                            paragraph
+    pub fn from_splitted_text(
+        command_text_splitted: Vec<&str>,
+        aliases_resolver: &AliasesResolver,
+    ) -> Result<Command> {
+        let command_name = command_text_splitted
+            .get(0)
+            .ok_or(anyhow!("Can not parse empty command"))?;
+        let command_arguments = command_text_splitted[1..].to_vec();
+        Ok(match (*command_name, command_arguments.len()) {
+            ("/start", 1) => Self::from_splitted_text(
+                format!("/{}", command_arguments[0])
+                    .splitn(2, '_')
+                    .collect(),
+                aliases_resolver,
+            )?,
+            ("/reference", 1) => {
+                let argument = command_arguments[0];
+                Command::GetThesisByReference(aliases_resolver.get_thesis_id_by_reference(
+                    &sweater::Reference::new(argument).with_context(|| {
+                        anyhow!(
+                            "Can not parse /reference command because argument {argument:?} is \
+                             invalid reference"
                         )
-                    })?
-                    .to_owned(),
-                ))
-            } else {
-                Err(anyhow!(
-                    "Can not parse first line {:?} in {}-th paragraph {:?}",
-                    lines[0],
-                    paragraph_index + 1,
-                    paragraph
-                ))
+                    })?,
+                )?)
             }
-        } else {
-            Ok(None)
+            ("/tags", 1..) => Command::GetThesesByTags(
+                command_arguments[1..]
+                    .iter()
+                    .map(|line| sweater::Tag(line.to_string()))
+                    .collect(),
+            ),
+            ("/add_offerers", 1..) => {
+                let mut result = vec![];
+                for argument in command_arguments[1..].iter() {
+                    result.push(User {
+                        telegram_id: argument.parse::<i64>()?,
+                        role: Role::Offerer,
+                        commands_queue: None,
+                    });
+                }
+                Command::AddOfferers(result)
+            }
+            ("/promote_to_cantor", 1) => {
+                let argument = command_arguments[0];
+                Command::PromoteToCantor(
+                    argument
+                        .parse::<i64>()
+                        .with_context(|| {
+                            format!(
+                                "Can not parse command argument {argument:?} as user telegram id"
+                            )
+                        })?
+                        .into(),
+                )
+            }
+            _ => {
+                return Err(anyhow!(
+                    "Can not parse command: unsupported command name ({command_name:?}) or amount \
+                     of arguments ({}). Supported commands are:\n/reference \
+                     one_reference_to_search_by\n/tags one or more some tags to search \
+                     by\n/add_offerers one or more users' telegram \
+                     identifiers\n/promote_to_cantor one_offerer_telegram_identifier",
+                    command_arguments.len()
+                ));
+            }
         }
+        .validated()
+        .context("Invalid command parsed")?
+        .to_owned())
     }
 }

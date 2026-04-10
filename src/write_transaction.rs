@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use fallible_iterator::FallibleIterator;
 use trove::path_segments;
 
@@ -89,20 +89,16 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
 
     pub fn execute_command(&mut self, command: &Command) -> Result<String> {
         match command {
-            Command::GetThesesByIds(theses_ids) => Ok(fallible_iterator::convert(
-                theses_ids.iter().map(|thesis_id| {
-                    sweater::ReadTransactionMethods::get_thesis(self.sweater_transaction, thesis_id)
-                }),
-            )
-            .map(|thesis_option| {
-                Ok(if let Some(thesis) = thesis_option {
+            Command::GetThesisByReference(thesis_id) => Ok(
+                if let Some(thesis) = sweater::ReadTransactionMethods::get_thesis(
+                    self.sweater_transaction,
+                    thesis_id,
+                )? {
                     self.format_thesis(&thesis)?
                 } else {
                     "Not found".to_string()
-                })
-            })
-            .collect::<Vec<_>>()?
-            .join("\n\n")),
+                },
+            ),
             Command::GetThesesByTags(tags) => {
                 Ok(sweater::ReadTransactionMethods::iter_theses_ids_by_tags(
                     self.sweater_transaction,
@@ -116,7 +112,7 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
                             self.sweater_transaction,
                             &thesis_id,
                         )?
-                        .unwrap(),
+                        .ok_or(anyhow!("Thesis not found"))?,
                     )
                 })
                 .collect::<Vec<_>>()?

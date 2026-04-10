@@ -216,33 +216,25 @@ impl Chant {
         if let Some(ref message_text) = message.text {
             let reply_text = self
                 .lock_all_and_write(|transaction| {
-                    let commands = commands::CommandsIterator::new(
+                    let command = commands::Command::from_text(
                         message_text,
-                        &mut sweater::AliasesResolver {
+                        &sweater::AliasesResolver {
                             read_able_transaction: transaction.sweater_transaction,
                             known_aliases: BTreeMap::new(),
                         },
-                    )
-                    .collect::<Vec<_>>()?;
-                    for command in commands.iter() {
-                        if !command.is_allowed_for(user_role) {
-                            return Err(anyhow!(
-                                "Execution of command {command:?} not allowed for user with role \
-                                 {user_role:?}"
-                            ));
-                        };
-                    }
-                    let results = &fallible_iterator::convert(
-                        commands
-                            .iter()
-                            .map(|command| transaction.execute_command(command)),
-                    )
-                    .collect::<Vec<_>>()?;
-                    Ok(results.join("\n\n"))
+                    )?;
+                    if !command.is_allowed_for(user_role) {
+                        return Err(anyhow!(
+                            "Execution of command {command:?} not allowed for user with role \
+                             {user_role:?}"
+                        ));
+                    };
+                    transaction.execute_command(&command)
                 })
                 .context("Error parsing and executing commands")?;
             self.bot.send_message(
                 &frankenstein::methods::SendMessageParams::builder()
+                    .parse_mode(frankenstein::ParseMode::MarkdownV2)
                     .chat_id(message.chat.id)
                     .reply_parameters(
                         frankenstein::types::ReplyParameters::builder()
