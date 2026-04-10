@@ -20,7 +20,7 @@ An Offerer can request execution of some storage-altering commands by sending th
 
 Reference is either thesis identifier or thesis alias
 
-Basic concepts described in [wool readme](https://github.com/mentalblood0/wool#basic-concepts)
+Basic concepts are described in [wool readme](https://github.com/mentalblood0/wool#basic-concepts)
 
 **Theses aliases and identifiers in bot replies to `/reference` and `/tags` commands are clickable**
 
