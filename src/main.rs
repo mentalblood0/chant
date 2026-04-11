@@ -4,6 +4,8 @@ pub mod user;
 pub mod write_transaction;
 
 use std::collections::BTreeMap;
+use std::io::Write;
+use std::path::PathBuf;
 
 use anyhow::{anyhow, Context, Result};
 use fallible_iterator::FallibleIterator;
@@ -42,6 +44,7 @@ pub struct ChantConfig {
     pub token: String,
     pub users: Vec<User>,
     pub limits: Limits,
+    pub graph_file_path: PathBuf,
 }
 
 pub struct Chant {
@@ -59,7 +62,11 @@ impl Chant {
             bot: frankenstein::client_ureq::Bot::new(&token),
             config,
         };
-        result.lock_all_and_write(|transaction| transaction.add_users(&users_to_add))?;
+        let graph_definition = result.lock_all_and_write(|transaction| {
+            transaction.add_users(&users_to_add)?;
+            transaction.get_graph_definition()
+        })?;
+        result.update_graph_file(&graph_definition)?;
         Ok(result)
     }
 
@@ -87,6 +94,47 @@ impl Chant {
                 })
             })
             .context("Can not lock all write operations on chest and initiate read transaction")
+    }
+
+    pub fn update_graph_file(&self, graph_definition: &String) -> Result<()> {
+        let mut command = std::process::Command::new("dot")
+            .args([
+                "-Tsvg",
+                &format!(
+                    "-o{}",
+                    self.config
+                        .graph_file_path
+                        .clone()
+                        .to_str()
+                        .with_context(|| format!(
+                            "Can not use graph file path {:?} as it is invalid",
+                            self.config.graph_file_path
+                        ))?
+                ),
+            ])
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+            .context("Can not spawn command to generate graph from graph definition")?;
+        command
+            .stdin
+            .take()
+            .context(
+                "Can not own standard input handle of command spawned to generate grpah from \
+                 graph definition",
+            )?
+            .write_all(graph_definition.as_bytes())
+            .context("Can not write graph definition to standard input of command")?;
+        let command_result = command
+            .wait_with_output()
+            .context("Can not execute command to generate graph from graph definition")?;
+        if !command_result.status.success() {
+            Err(anyhow!(
+                "Error while executing command to generate graph from graph definition:\n{}",
+                String::from_utf8(command_result.stderr)?
+            ))
+        } else {
+            Ok(())
+        }
     }
 
     pub fn get_file_id(message: &frankenstein::types::Message) -> Option<String> {
@@ -214,37 +262,62 @@ impl Chant {
         user_role: &Role,
     ) -> Result<()> {
         if let Some(ref message_text) = message.text {
-            let reply_text = self
-                .lock_all_and_write(|transaction| {
-                    let command = commands::Command::from_text(
-                        message_text,
-                        &sweater::AliasesResolver {
-                            read_able_transaction: transaction.sweater_transaction,
-                            known_aliases: BTreeMap::new(),
+            if message_text == "/graph" {
+                self.bot.send_document(
+                    &frankenstein::methods::SendDocumentParams::builder()
+                        .chat_id(message.chat.id)
+                        .document(frankenstein::input_file::InputFile {
+                            path: self.config.graph_file_path.clone(),
+                        })
+                        .reply_parameters(
+                            frankenstein::types::ReplyParameters::builder()
+                                .message_id(message.message_id)
+                                .build(),
+                        )
+                        .build(),
+                )?;
+            } else {
+                let reply_text = self
+                    .lock_all_and_write(|transaction| {
+                        let command = commands::Command::from_text(
+                            message_text,
+                            &sweater::AliasesResolver {
+                                read_able_transaction: transaction.sweater_transaction,
+                                known_aliases: BTreeMap::new(),
+                            },
+                        )?;
+                        if !command.is_allowed_for(user_role) {
+                            return Err(anyhow!(
+                                "Execution of command {command:?} not allowed for user with role \
+                                 {user_role:?}"
+                            ));
+                        };
+                        transaction.execute_command(&command)
+                    })
+                    .context("Error parsing and executing commands")?;
+                if reply_text.is_empty() {
+                    self.set_reaction(
+                        &MessageGlobalId {
+                            message_id: message.message_id,
+                            chat_id: message.chat.id,
                         },
+                        "🤷",
                     )?;
-                    if !command.is_allowed_for(user_role) {
-                        return Err(anyhow!(
-                            "Execution of command {command:?} not allowed for user with role \
-                             {user_role:?}"
-                        ));
-                    };
-                    transaction.execute_command(&command)
-                })
-                .context("Error parsing and executing commands")?;
-            // dbg!(&reply_text);
-            self.bot.send_message(
-                &frankenstein::methods::SendMessageParams::builder()
-                    .parse_mode(frankenstein::ParseMode::MarkdownV2)
-                    .chat_id(message.chat.id)
-                    .reply_parameters(
-                        frankenstein::types::ReplyParameters::builder()
-                            .message_id(message.message_id)
+                } else {
+                    self.bot.send_message(
+                        &frankenstein::methods::SendMessageParams::builder()
+                            .parse_mode(frankenstein::ParseMode::MarkdownV2)
+                            .chat_id(message.chat.id)
+                            .reply_parameters(
+                                frankenstein::types::ReplyParameters::builder()
+                                    .message_id(message.message_id)
+                                    .build(),
+                            )
+                            .text(reply_text)
                             .build(),
-                    )
-                    .text(reply_text)
-                    .build(),
-            )?;
+                    )?;
+                }
+            }
         }
         Ok(())
     }
@@ -331,9 +404,11 @@ impl Chant {
                         if let frankenstein::types::ReactionType::Emoji(emoji) = reaction_type {
                             if emoji.emoji == "👍" || emoji.emoji == "👎" {
                                 let (
+                                    approved,
                                     source_message_global_id,
                                     sent_to_cantors_global_messages_ids,
                                     commands_execution_error_option,
+                                    graph_definition,
                                 ) = self.lock_all_and_write(|transaction| {
                                     let user_which_commands_were_approved = transaction
                                         .sweater_transaction
@@ -381,7 +456,8 @@ impl Chant {
                                             &path_segments!("commands_queue"),
                                         )?;
                                     let mut commands_execution_error_option = None;
-                                    if emoji.emoji == "👍" {
+                                    let approved = emoji.emoji == "👍";
+                                    if approved {
                                         for command in approved_queued_commands.commands.iter() {
                                             if let Err(commands_execution_error) = transaction
                                                 .sweater_transaction
@@ -394,9 +470,11 @@ impl Chant {
                                         }
                                     }
                                     Ok((
+                                        approved,
                                         approved_queued_commands.source_message_global_id,
                                         approved_queued_commands.sent_to_cantors_messages_ids,
                                         commands_execution_error_option,
+                                        transaction.get_graph_definition()?,
                                     ))
                                 })?;
                                 if let Some(commands_execution_error) =
@@ -429,6 +507,9 @@ impl Chant {
                                             .message_id(sent_to_cantor_global_message_id.message_id)
                                             .build(),
                                     )?;
+                                }
+                                if approved {
+                                    self.update_graph_file(&graph_definition)?;
                                 }
                             }
                         }

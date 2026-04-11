@@ -32,6 +32,19 @@ macro_rules! define_read_methods {
                 .collect()
         }
 
+        fn get_graph_definition(&self) -> Result<String> {
+            Ok(sweater::GraphGenerator::new(
+                &sweater::GraphGeneratorConfig {
+                    wrap_width: 64,
+                    externalize_relations_nodes: sweater::ExternalizeRelationsNodes::None,
+                    show_nodes_references: sweater::ShowNodesReferences::All,
+                },
+                self.sweater_transaction,
+            )?
+            .collect::<Vec<_>>()?
+            .join(""))
+        }
+
         fn format_thesis_id(&self, thesis_id: &trove::DocumentId) -> Result<String> {
             let thesis_id_string = thesis_id.to_string();
             Ok(
@@ -118,6 +131,7 @@ macro_rules! define_read_methods {
 pub trait ReadTransactionMethods<'a> {
     fn is_queue_full(&self, user_telegram_id: i64) -> Result<bool>;
     fn get_cantors_user_ids(&self) -> Result<Vec<trove::DocumentId>>;
+    fn get_graph_definition(&self) -> Result<String>;
     fn format_thesis_id(&self, thesis_id: &trove::DocumentId) -> Result<String>;
     fn format_tag(&self, tag_text: &String) -> String;
     fn format_thesis(&self, thesis: &sweater::Thesis) -> Result<String>;

@@ -10,6 +10,7 @@ limits:
     commands:
       min: 1
       max: 64
+graph_file_path: /tmp/chant/graph.svg
 sweater:
   supported_relations_kinds:
     - answers
