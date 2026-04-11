@@ -16,6 +16,8 @@ An Offerer can request execution of some storage-altering commands by sending th
 
 `/reference one_reference_to_search_by`
 
+`/tags`
+
 `/tags one or more some tags to search by`
 
 Reference is either thesis identifier or thesis alias
