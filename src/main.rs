@@ -336,6 +336,13 @@ impl Chant {
         T: std::fmt::Debug,
     {
         if let Err(error) = message_processing_result {
+            self.set_reaction(
+                &MessageGlobalId {
+                    message_id: message.message_id,
+                    chat_id: message.chat.id,
+                },
+                "🤔",
+            )?;
             self.bot.send_message(
                 &frankenstein::methods::SendMessageParams::builder()
                     .chat_id(message.chat.id)
@@ -485,6 +492,7 @@ impl Chant {
                                 if let Some(commands_execution_error) =
                                     commands_execution_error_option
                                 {
+                                    self.set_reaction(&source_message_global_id, "🤔")?;
                                     self.bot.send_message(
                                         &frankenstein::methods::SendMessageParams::builder()
                                             .chat_id(source_message_global_id.chat_id)
@@ -499,7 +507,6 @@ impl Chant {
                                             ))
                                             .build(),
                                     )?;
-                                    self.set_reaction(&source_message_global_id, "🤔")?;
                                 } else {
                                     self.set_reaction(&source_message_global_id, &emoji.emoji)?;
                                 }
