@@ -30,7 +30,6 @@ pub struct Bounds {
 #[derive(serde::Deserialize)]
 pub struct BatchLimits {
     pub bytes: Bounds,
-    pub commands: Bounds,
 }
 
 #[derive(serde::Deserialize)]
