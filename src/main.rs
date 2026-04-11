@@ -313,6 +313,11 @@ impl Chant {
                                     .message_id(message.message_id)
                                     .build(),
                             )
+                            .link_preview_options(
+                                frankenstein::types::LinkPreviewOptions::builder()
+                                    .is_disabled(true)
+                                    .build(),
+                            )
                             .text(reply_text)
                             .build(),
                     )?;
