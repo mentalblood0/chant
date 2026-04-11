@@ -7,9 +7,6 @@ limits:
     bytes:
       min: 32
       max: 4096
-    commands:
-      min: 1
-      max: 64
 graph_file_path: /tmp/chant/graph.svg
 sweater:
   supported_relations_kinds:

@@ -53,12 +53,12 @@ macro_rules! define_read_methods {
                     &thesis_id,
                 )? {
                     format!(
-                        "[{}](https://t.me/mentalblood_test_bot?start=reference_{})",
+                        "[{}](https://t.me/grot_chant_bot?start=reference_{})",
                         alias.0, thesis_id_string
                     )
                 } else {
                     format!(
-                        "[{}](https://t.me/mentalblood_test_bot?start=reference_{})",
+                        "[{}](https://t.me/grot_chant_bot?start=reference_{})",
                         thesis_id_string, thesis_id_string
                     )
                 },
@@ -67,7 +67,7 @@ macro_rules! define_read_methods {
 
         fn format_tag(&self, tag_text: &String) -> String {
             format!(
-                "[{}](https://t.me/mentalblood_test_bot?start=tags_{})",
+                "[{}](https://t.me/grot_chant_bot?start=tags_{})",
                 tag_text, tag_text
             )
         }
