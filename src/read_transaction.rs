@@ -86,7 +86,10 @@ macro_rules! define_read_methods {
             result.push_str(&format!(
                 "\ncontent: {}",
                 telegram_escape::tg_escape(&match thesis.content {
-                    sweater::Content::Text(ref text) => text.composed(),
+                    sweater::Content::Text(ref text) =>
+                        text.composed(
+                            |referenced_thesis_id| self.format_thesis_id(referenced_thesis_id)
+                        )?,
                     sweater::Content::Relation(ref relation) => format!(
                         "{} {} {}",
                         self.format_thesis_id(&relation.from)?,
