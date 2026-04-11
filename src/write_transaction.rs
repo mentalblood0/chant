@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 
 use anyhow::{anyhow, Result};
 use fallible_iterator::FallibleIterator;
@@ -99,6 +100,22 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
                     "Not found".to_string()
                 },
             ),
+            Command::GetAllTags => {
+                let mut result = BTreeSet::new();
+                for tags in sweater::ReadTransactionMethods::iter_theses(self.sweater_transaction)?
+                    .map(|thesis| Ok(thesis.tags))
+                    .collect::<Vec<_>>()?
+                {
+                    for tag in tags {
+                        result.insert(tag);
+                    }
+                }
+                Ok(result
+                    .iter()
+                    .map(|tag| telegram_escape::tg_escape(&self.format_tag(&tag.0)))
+                    .collect::<Vec<_>>()
+                    .join(" "))
+            }
             Command::GetThesesByTags(tags) => {
                 Ok(sweater::ReadTransactionMethods::iter_theses_ids_by_tags(
                     self.sweater_transaction,
@@ -112,7 +129,10 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
                             self.sweater_transaction,
                             &thesis_id,
                         )?
-                        .ok_or(anyhow!("Thesis not found"))?,
+                        .ok_or(anyhow!(
+                            "Thesis with identifier {:?} not found",
+                            thesis_id.to_string()
+                        ))?,
                     )
                 })
                 .collect::<Vec<_>>()?

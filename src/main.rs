@@ -232,6 +232,7 @@ impl Chant {
                     transaction.execute_command(&command)
                 })
                 .context("Error parsing and executing commands")?;
+            // dbg!(&reply_text);
             self.bot.send_message(
                 &frankenstein::methods::SendMessageParams::builder()
                     .parse_mode(frankenstein::ParseMode::MarkdownV2)

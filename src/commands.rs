@@ -8,6 +8,7 @@ use crate::user::{Role, User};
 pub enum Command {
     GetThesisByReference(trove::DocumentId),
     GetThesesByTags(Vec<sweater::Tag>),
+    GetAllTags,
     AddOfferers(Vec<User>),
     PromoteToCantor(trove::DocumentId),
 }
@@ -25,6 +26,7 @@ impl Command {
                     tag.validated()?;
                 }
             }
+            Command::GetAllTags => {}
             Command::AddOfferers(_) => {}
             Command::PromoteToCantor(_) => {}
         }
@@ -35,11 +37,13 @@ impl Command {
         match (role, self) {
             (Role::Offerer, Command::GetThesisByReference(_)) => true,
             (Role::Offerer, Command::GetThesesByTags(_)) => true,
+            (Role::Offerer, Command::GetAllTags) => true,
             (Role::Offerer, Command::AddOfferers(_)) => false,
             (Role::Offerer, Command::PromoteToCantor(_)) => false,
 
             (Role::Cantor, Command::GetThesisByReference(_)) => true,
             (Role::Cantor, Command::GetThesesByTags(_)) => true,
+            (Role::Cantor, Command::GetAllTags) => true,
             (Role::Cantor, Command::AddOfferers(_)) => true,
             (Role::Cantor, Command::PromoteToCantor(_)) => true,
         }
@@ -76,15 +80,16 @@ impl Command {
                     })?,
                 )?)
             }
+            ("/tags", 0) => Command::GetAllTags,
             ("/tags", 1..) => Command::GetThesesByTags(
-                command_arguments[1..]
+                command_arguments
                     .iter()
                     .map(|line| sweater::Tag(line.to_string()))
                     .collect(),
             ),
             ("/add_offerers", 1..) => {
                 let mut result = vec![];
-                for argument in command_arguments[1..].iter() {
+                for argument in command_arguments.iter() {
                     result.push(User {
                         telegram_id: argument.parse::<i64>()?,
                         role: Role::Offerer,
