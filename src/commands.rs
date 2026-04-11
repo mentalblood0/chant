@@ -114,8 +114,8 @@ impl Command {
             _ => {
                 return Err(anyhow!(
                     "Can not parse command: unsupported command name ({command_name:?}) or amount \
-                     of arguments ({}). Supported commands are:\n/reference \
-                     one_reference_to_search_by\n/tags one or more some tags to search \
+                     of arguments ({}). Supported commands are:\n/graph\n/reference \
+                     one_reference_to_search_by\n/tags\n/tags one or more some tags to search \
                      by\n/add_offerers one or more users' telegram \
                      identifiers\n/promote_to_cantor one_offerer_telegram_identifier",
                     command_arguments.len()
