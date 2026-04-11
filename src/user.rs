@@ -17,6 +17,8 @@ pub struct MessageGlobalId {
 pub struct QueuedCommands {
     pub source_message_global_id: MessageGlobalId,
     pub commands: Vec<sweater::Command>,
+
+    #[serde(default)]
     pub sent_to_cantors_messages_ids: Vec<MessageGlobalId>,
 }
 

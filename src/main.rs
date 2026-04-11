@@ -203,28 +203,29 @@ impl Chant {
                             } else {
                                 let sent_to_cantors_messages_ids = self
                                         .lock_all_writes_and_read(|transaction| {
-                                            fallible_iterator::convert(
-                                                transaction
-                                                    .get_cantors_user_ids()?
-                                                    .iter()
-                                                    .map(|cantor_user_id| Ok(cantor_user_id)),
-                                            )
-                                            .map(|cantor_user_id| {
-                                                Ok(MessageGlobalId {
-                                                    message_id: self.bot
-                                                                    .forward_message(
-                                                                        &frankenstein::methods::ForwardMessageParams::builder()
-                                                                            .chat_id(<trove::DocumentId as Into<i64>>::into(cantor_user_id.clone()))
-                                                                            .from_chat_id(message.chat.id)
-                                                                            .message_id(message.message_id)
-                                                                            .build(),
-                                                                    )?
-                                                                    .result
-                                                                    .message_id,
-                                                    chat_id: cantor_user_id.clone().into(),
-                                                })
-                                            })
-                                            .collect::<Vec<_>>()
+                                            let mut result = vec![];
+                                            for cantor_user_id in transaction.get_cantors_user_ids()? {
+                                                match self.bot.forward_message(
+                                                    &frankenstein::methods::ForwardMessageParams::builder()
+                                                        .chat_id(<trove::DocumentId as Into<i64>>::into(cantor_user_id.clone()))
+                                                        .from_chat_id(message.chat.id)
+                                                        .message_id(message.message_id)
+                                                        .build(),
+                                                ) {
+                                                    Ok(message_forwarding_result) => {
+                                                        result.push(MessageGlobalId {
+                                                            message_id: message_forwarding_result.result.message_id,
+                                                            chat_id: cantor_user_id.clone().into(),
+                                                        });
+                                                    }
+                                                    Err(error) => {
+                                                        if !error.to_string().contains("chat not found") {
+                                                            return Err(anyhow!(error));
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            Ok(result)
                                         })?;
                                 self.lock_all_and_write(|transaction| {
                                     transaction
