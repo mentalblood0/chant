@@ -26,7 +26,7 @@ Reference is either thesis identifier or thesis alias
 
 Basic concepts are described in [wool readme](https://github.com/mentalblood0/wool#basic-concepts)
 
-**Theses aliases and identifiers in bot replies to `/reference` and `/tags` commands are clickable**
+**Theses aliases, identifiers and tags in bot replies to `/reference` and `/tags` commands are clickable**
 
 ### Cantor
 
