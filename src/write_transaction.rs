@@ -124,6 +124,15 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
                     .collect::<Vec<_>>()
                     .join(" "))
             }
+            Command::GetSupportedRelationsKinds => Ok(self
+                .sweater_transaction
+                .sweater_config
+                .supported_relations_kinds
+                .iter()
+                .cloned()
+                .map(|relation_kind| relation_kind.0)
+                .collect::<Vec<_>>()
+                .join(", ")),
             Command::GetThesesByTags(tags) => {
                 Ok(sweater::ReadTransactionMethods::iter_theses_ids_by_tags(
                     self.sweater_transaction,

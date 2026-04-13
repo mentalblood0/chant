@@ -10,7 +10,7 @@ There are two user roles available: Offerer and Cantor
 
 ### Offerer
 
-An Offerer can request execution of some storage-altering commands by sending them in file with `.txt` extension (commands syntax described in [wool readme](https://github.com/mentalblood0/wool#commands)). Execution of storage-altering commands is postponed until approval from a user with Cantor role. Offerer can also execute read commands: get full thesis information by it's identifier or alias, search theses by tags
+An Offerer can request execution of some storage-altering commands (see [wool readme](https://github.com/mentalblood0/wool#commands)). These commands may be sent both in message text or in attached document with `.txt` extension. Execution of storage-altering commands is postponed until approval from a user with Cantor role. Offerer can also execute read commands: get full thesis information by it's identifier or alias, search theses by tags
 
 #### In-message commands
 
@@ -21,6 +21,8 @@ An Offerer can request execution of some storage-altering commands by sending th
 `/tags one or more some tags to search by`
 
 `/graph`
+
+`/relations_kinds`
 
 Reference is either thesis identifier or thesis alias
 

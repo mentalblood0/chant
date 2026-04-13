@@ -9,6 +9,7 @@ pub enum Command {
     GetThesisByReference(trove::DocumentId),
     GetThesesByTags(Vec<sweater::Tag>),
     GetAllTags,
+    GetSupportedRelationsKinds,
     AddOfferers(Vec<User>),
     PromoteToCantor(trove::DocumentId),
 }
@@ -27,6 +28,7 @@ impl Command {
                 }
             }
             Command::GetAllTags => {}
+            Command::GetSupportedRelationsKinds => {}
             Command::AddOfferers(_) => {}
             Command::PromoteToCantor(_) => {}
         }
@@ -38,12 +40,14 @@ impl Command {
             (Role::Offerer, Command::GetThesisByReference(_)) => true,
             (Role::Offerer, Command::GetThesesByTags(_)) => true,
             (Role::Offerer, Command::GetAllTags) => true,
+            (Role::Offerer, Command::GetSupportedRelationsKinds) => true,
             (Role::Offerer, Command::AddOfferers(_)) => false,
             (Role::Offerer, Command::PromoteToCantor(_)) => false,
 
             (Role::Cantor, Command::GetThesisByReference(_)) => true,
             (Role::Cantor, Command::GetThesesByTags(_)) => true,
             (Role::Cantor, Command::GetAllTags) => true,
+            (Role::Cantor, Command::GetSupportedRelationsKinds) => true,
             (Role::Cantor, Command::AddOfferers(_)) => true,
             (Role::Cantor, Command::PromoteToCantor(_)) => true,
         }
@@ -80,6 +84,7 @@ impl Command {
                     })?,
                 )?)
             }
+            ("/relations_kinds", 0) => Command::GetSupportedRelationsKinds,
             ("/tags", 0) => Command::GetAllTags,
             ("/tags", 1..) => Command::GetThesesByTags(
                 command_arguments
