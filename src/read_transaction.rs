@@ -34,11 +34,7 @@ macro_rules! define_read_methods {
 
         fn get_graph_definition(&self) -> Result<String> {
             Ok(sweater::GraphGenerator::new(
-                &sweater::GraphGeneratorConfig {
-                    wrap_width: 64,
-                    externalize_relations_nodes: sweater::ExternalizeRelationsNodes::None,
-                    show_nodes_references: sweater::ShowNodesReferences::All,
-                },
+                &sweater::GraphGeneratorConfig { wrap_width: 64 },
                 self.sweater_transaction,
             )?
             .collect::<Vec<_>>()?

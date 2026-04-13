@@ -147,6 +147,75 @@ impl Chant {
         None
     }
 
+    pub fn process_storage_altering_commands(
+        &mut self,
+        message: &frankenstein::types::Message,
+        text: &str,
+    ) -> Result<()> {
+        if let Err(error_queuing_commands) = self.lock_all_and_write(|transaction| {
+            transaction.queue_commands(
+                MessageGlobalId {
+                    message_id: message.message_id,
+                    chat_id: message.chat.id,
+                },
+                message.chat.id.into(),
+                &text,
+            )
+        }) {
+            return Result::Err(anyhow!(
+                "There was error queuing commands: {}",
+                error_queuing_commands
+            ));
+        } else {
+            let sent_to_cantors_messages_ids = self.lock_all_writes_and_read(|transaction| {
+                let mut result = vec![];
+                for cantor_user_id in transaction.get_cantors_user_ids()? {
+                    match self.bot.forward_message(
+                        &frankenstein::methods::ForwardMessageParams::builder()
+                            .chat_id(<trove::DocumentId as Into<i64>>::into(
+                                cantor_user_id.clone(),
+                            ))
+                            .from_chat_id(message.chat.id)
+                            .message_id(message.message_id)
+                            .build(),
+                    ) {
+                        Ok(message_forwarding_result) => {
+                            result.push(MessageGlobalId {
+                                message_id: message_forwarding_result.result.message_id,
+                                chat_id: cantor_user_id.clone().into(),
+                            });
+                        }
+                        Err(error) => {
+                            if !error.to_string().contains("chat not found") {
+                                return Err(anyhow!(error));
+                            }
+                        }
+                    }
+                }
+                Ok(result)
+            })?;
+            self.lock_all_and_write(|transaction| {
+                transaction
+                    .sweater_transaction
+                    .chest_transaction
+                    .users_set(
+                        message.chat.id.into(),
+                        path_segments!("commands_queue", "sent_to_cantors_messages_ids"),
+                        serde_json::to_value(&sent_to_cantors_messages_ids)?,
+                    )?;
+                Ok(())
+            })?;
+            self.set_reaction(
+                &MessageGlobalId {
+                    message_id: message.message_id,
+                    chat_id: message.chat.id,
+                },
+                "✍️",
+            )?;
+        }
+        Ok(())
+    }
+
     pub fn process_message_document(
         &mut self,
         message: &frankenstein::types::Message,
@@ -183,6 +252,7 @@ impl Chant {
                                 .call()?
                                 .into_body()
                                 .read_to_string()?;
+                            self.process_storage_altering_commands(message, &text)?;
                         }
                     }
                 }
@@ -213,73 +283,7 @@ impl Chant {
                 )?;
             } else {
                 if message_text.starts_with("/may") {
-                    if let Err(error_queuing_commands) = self.lock_all_and_write(|transaction| {
-                        transaction.queue_commands(
-                            MessageGlobalId {
-                                message_id: message.message_id,
-                                chat_id: message.chat.id,
-                            },
-                            message.chat.id.into(),
-                            &message_text,
-                        )
-                    }) {
-                        return Result::Err(anyhow!(
-                            "There was error queuing commands: {}",
-                            error_queuing_commands
-                        ));
-                    } else {
-                        let sent_to_cantors_messages_ids =
-                            self.lock_all_writes_and_read(|transaction| {
-                                let mut result = vec![];
-                                for cantor_user_id in transaction.get_cantors_user_ids()? {
-                                    match self.bot.forward_message(
-                                        &frankenstein::methods::ForwardMessageParams::builder()
-                                            .chat_id(<trove::DocumentId as Into<i64>>::into(
-                                                cantor_user_id.clone(),
-                                            ))
-                                            .from_chat_id(message.chat.id)
-                                            .message_id(message.message_id)
-                                            .build(),
-                                    ) {
-                                        Ok(message_forwarding_result) => {
-                                            result.push(MessageGlobalId {
-                                                message_id: message_forwarding_result
-                                                    .result
-                                                    .message_id,
-                                                chat_id: cantor_user_id.clone().into(),
-                                            });
-                                        }
-                                        Err(error) => {
-                                            if !error.to_string().contains("chat not found") {
-                                                return Err(anyhow!(error));
-                                            }
-                                        }
-                                    }
-                                }
-                                Ok(result)
-                            })?;
-                        self.lock_all_and_write(|transaction| {
-                            transaction
-                                .sweater_transaction
-                                .chest_transaction
-                                .users_set(
-                                    message.chat.id.into(),
-                                    path_segments!(
-                                        "commands_queue",
-                                        "sent_to_cantors_messages_ids"
-                                    ),
-                                    serde_json::to_value(&sent_to_cantors_messages_ids)?,
-                                )?;
-                            Ok(())
-                        })?;
-                        self.set_reaction(
-                            &MessageGlobalId {
-                                message_id: message.message_id,
-                                chat_id: message.chat.id,
-                            },
-                            "✍️",
-                        )?;
-                    }
+                    self.process_storage_altering_commands(message, message_text)?;
                 } else {
                     let reply_text = self
                         .lock_all_and_write(|transaction| {
@@ -393,22 +397,16 @@ impl Chant {
                     {
                         let message_user = serde_json::from_value::<User>(message_user_json_value)?;
                         {
-                            let message_document_processing_result = self
-                                .process_message_document(message)
-                                .context("Can not process message document");
-                            self.reply_with_error_text_if_error(
-                                message,
-                                message_document_processing_result,
-                            )?;
-                        }
-                        {
-                            let message_text_processing_result = self
+                            let processing_result = self
                                 .process_message_text(message, &message_user.role)
                                 .context("Can not process message text");
-                            self.reply_with_error_text_if_error(
-                                message,
-                                message_text_processing_result,
-                            )?;
+                            self.reply_with_error_text_if_error(message, processing_result)?;
+                        }
+                        {
+                            let processing_result = self
+                                .process_message_document(message)
+                                .context("Can not process message document");
+                            self.reply_with_error_text_if_error(message, processing_result)?;
                         }
                     } else {
                         continue;

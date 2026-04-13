@@ -42,7 +42,7 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
                 };
                 let mut result = vec![];
                 for line in text.lines() {
-                    result.push(sweater::parse_command(
+                    result.push(sweater::Command::parse(
                         line,
                         &mut aliases_resolver,
                         &self
@@ -50,9 +50,6 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
                             .sweater_config
                             .supported_relations_kinds,
                     )?);
-                }
-                for command in result.iter() {
-                    command.execute(self.sweater_transaction)?;
                 }
                 result
             },

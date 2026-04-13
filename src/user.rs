@@ -13,16 +13,16 @@ pub struct MessageGlobalId {
     pub chat_id: i64,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct QueuedCommands {
     pub source_message_global_id: MessageGlobalId,
-    pub commands: Vec<Box<dyn sweater::Command>>,
+    pub commands: Vec<sweater::Command>,
 
     #[serde(default)]
     pub sent_to_cantors_messages_ids: Vec<MessageGlobalId>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct User {
     pub telegram_id: i64,
     pub role: Role,
