@@ -183,71 +183,6 @@ impl Chant {
                                 .call()?
                                 .into_body()
                                 .read_to_string()?;
-                            if let Err(error_queuing_commands) =
-                                self.lock_all_and_write(|transaction| {
-                                    transaction.queue_commands(
-                                        MessageGlobalId {
-                                            message_id: message.message_id,
-                                            chat_id: message.chat.id,
-                                        },
-                                        message.chat.id.into(),
-                                        &text,
-                                    )
-                                })
-                            {
-                                return Result::Err(anyhow!(
-                                    "There was error queuing commands: {}",
-                                    error_queuing_commands
-                                ));
-                            } else {
-                                let sent_to_cantors_messages_ids = self
-                                        .lock_all_writes_and_read(|transaction| {
-                                            let mut result = vec![];
-                                            for cantor_user_id in transaction.get_cantors_user_ids()? {
-                                                match self.bot.forward_message(
-                                                    &frankenstein::methods::ForwardMessageParams::builder()
-                                                        .chat_id(<trove::DocumentId as Into<i64>>::into(cantor_user_id.clone()))
-                                                        .from_chat_id(message.chat.id)
-                                                        .message_id(message.message_id)
-                                                        .build(),
-                                                ) {
-                                                    Ok(message_forwarding_result) => {
-                                                        result.push(MessageGlobalId {
-                                                            message_id: message_forwarding_result.result.message_id,
-                                                            chat_id: cantor_user_id.clone().into(),
-                                                        });
-                                                    }
-                                                    Err(error) => {
-                                                        if !error.to_string().contains("chat not found") {
-                                                            return Err(anyhow!(error));
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            Ok(result)
-                                        })?;
-                                self.lock_all_and_write(|transaction| {
-                                    transaction
-                                        .sweater_transaction
-                                        .chest_transaction
-                                        .users_set(
-                                            message.chat.id.into(),
-                                            path_segments!(
-                                                "commands_queue",
-                                                "sent_to_cantors_messages_ids"
-                                            ),
-                                            serde_json::to_value(&sent_to_cantors_messages_ids)?,
-                                        )?;
-                                    Ok(())
-                                })?;
-                                self.set_reaction(
-                                    &MessageGlobalId {
-                                        message_id: message.message_id,
-                                        chat_id: message.chat.id,
-                                    },
-                                    "✍️",
-                                )?;
-                            }
                         }
                     }
                 }
@@ -277,50 +212,120 @@ impl Chant {
                         .build(),
                 )?;
             } else {
-                let reply_text = self
-                    .lock_all_and_write(|transaction| {
-                        let command = commands::Command::from_text(
-                            message_text,
-                            &sweater::AliasesResolver {
-                                read_able_transaction: transaction.sweater_transaction,
-                                known_aliases: BTreeMap::new(),
+                if message_text.starts_with("/may") {
+                    if let Err(error_queuing_commands) = self.lock_all_and_write(|transaction| {
+                        transaction.queue_commands(
+                            MessageGlobalId {
+                                message_id: message.message_id,
+                                chat_id: message.chat.id,
                             },
+                            message.chat.id.into(),
+                            &message_text,
+                        )
+                    }) {
+                        return Result::Err(anyhow!(
+                            "There was error queuing commands: {}",
+                            error_queuing_commands
+                        ));
+                    } else {
+                        let sent_to_cantors_messages_ids =
+                            self.lock_all_writes_and_read(|transaction| {
+                                let mut result = vec![];
+                                for cantor_user_id in transaction.get_cantors_user_ids()? {
+                                    match self.bot.forward_message(
+                                        &frankenstein::methods::ForwardMessageParams::builder()
+                                            .chat_id(<trove::DocumentId as Into<i64>>::into(
+                                                cantor_user_id.clone(),
+                                            ))
+                                            .from_chat_id(message.chat.id)
+                                            .message_id(message.message_id)
+                                            .build(),
+                                    ) {
+                                        Ok(message_forwarding_result) => {
+                                            result.push(MessageGlobalId {
+                                                message_id: message_forwarding_result
+                                                    .result
+                                                    .message_id,
+                                                chat_id: cantor_user_id.clone().into(),
+                                            });
+                                        }
+                                        Err(error) => {
+                                            if !error.to_string().contains("chat not found") {
+                                                return Err(anyhow!(error));
+                                            }
+                                        }
+                                    }
+                                }
+                                Ok(result)
+                            })?;
+                        self.lock_all_and_write(|transaction| {
+                            transaction
+                                .sweater_transaction
+                                .chest_transaction
+                                .users_set(
+                                    message.chat.id.into(),
+                                    path_segments!(
+                                        "commands_queue",
+                                        "sent_to_cantors_messages_ids"
+                                    ),
+                                    serde_json::to_value(&sent_to_cantors_messages_ids)?,
+                                )?;
+                            Ok(())
+                        })?;
+                        self.set_reaction(
+                            &MessageGlobalId {
+                                message_id: message.message_id,
+                                chat_id: message.chat.id,
+                            },
+                            "✍️",
                         )?;
-                        if !command.is_allowed_for(user_role) {
-                            return Err(anyhow!(
-                                "Execution of command {command:?} not allowed for user with role \
-                                 {user_role:?}"
-                            ));
-                        };
-                        transaction.execute_command(&command)
-                    })
-                    .context("Error parsing and executing commands")?;
-                if reply_text.is_empty() {
-                    self.set_reaction(
-                        &MessageGlobalId {
-                            message_id: message.message_id,
-                            chat_id: message.chat.id,
-                        },
-                        "🤷",
-                    )?;
+                    }
                 } else {
-                    self.bot.send_message(
-                        &frankenstein::methods::SendMessageParams::builder()
-                            .parse_mode(frankenstein::ParseMode::MarkdownV2)
-                            .chat_id(message.chat.id)
-                            .reply_parameters(
-                                frankenstein::types::ReplyParameters::builder()
-                                    .message_id(message.message_id)
-                                    .build(),
-                            )
-                            .link_preview_options(
-                                frankenstein::types::LinkPreviewOptions::builder()
-                                    .is_disabled(true)
-                                    .build(),
-                            )
-                            .text(reply_text)
-                            .build(),
-                    )?;
+                    let reply_text = self
+                        .lock_all_and_write(|transaction| {
+                            let command = commands::Command::from_text(
+                                message_text,
+                                &sweater::AliasesResolver {
+                                    read_able_transaction: transaction.sweater_transaction,
+                                    known_aliases: BTreeMap::new(),
+                                },
+                            )?;
+                            if !command.is_allowed_for(user_role) {
+                                return Err(anyhow!(
+                                    "Execution of command {command:?} not allowed for user with \
+                                     role {user_role:?}"
+                                ));
+                            };
+                            transaction.execute_command(&command)
+                        })
+                        .context("Error parsing and executing commands")?;
+                    if reply_text.is_empty() {
+                        self.set_reaction(
+                            &MessageGlobalId {
+                                message_id: message.message_id,
+                                chat_id: message.chat.id,
+                            },
+                            "🤷",
+                        )?;
+                    } else {
+                        self.bot.send_message(
+                            &frankenstein::methods::SendMessageParams::builder()
+                                .parse_mode(frankenstein::ParseMode::MarkdownV2)
+                                .chat_id(message.chat.id)
+                                .reply_parameters(
+                                    frankenstein::types::ReplyParameters::builder()
+                                        .message_id(message.message_id)
+                                        .build(),
+                                )
+                                .link_preview_options(
+                                    frankenstein::types::LinkPreviewOptions::builder()
+                                        .is_disabled(true)
+                                        .build(),
+                                )
+                                .text(reply_text)
+                                .build(),
+                        )?;
+                    }
                 }
             }
         }
@@ -471,9 +476,8 @@ impl Chant {
                                     let approved = emoji.emoji == "👍";
                                     if approved {
                                         for command in approved_queued_commands.commands.iter() {
-                                            if let Err(commands_execution_error) = transaction
-                                                .sweater_transaction
-                                                .execute_command(&command)
+                                            if let Err(commands_execution_error) =
+                                                command.execute(transaction.sweater_transaction)
                                             {
                                                 commands_execution_error_option =
                                                     Some(commands_execution_error);

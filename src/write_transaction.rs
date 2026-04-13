@@ -33,25 +33,36 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
         user_id: trove::DocumentId,
         text: &str,
     ) -> Result<()> {
+        let commands = serde_json::to_value(Some(QueuedCommands {
+            source_message_global_id: source_message_id,
+            commands: {
+                let mut aliases_resolver = sweater::AliasesResolver {
+                    read_able_transaction: self.sweater_transaction,
+                    known_aliases: BTreeMap::new(),
+                };
+                let mut result = vec![];
+                for line in text.lines() {
+                    result.push(sweater::parse_command(
+                        line,
+                        &mut aliases_resolver,
+                        &self
+                            .sweater_transaction
+                            .sweater_config
+                            .supported_relations_kinds,
+                    )?);
+                }
+                for command in result.iter() {
+                    command.execute(self.sweater_transaction)?;
+                }
+                result
+            },
+
+            sent_to_cantors_messages_ids: vec![],
+        }))?;
         self.sweater_transaction.chest_transaction.users_set(
             user_id,
             trove::path_segments!("commands_queue"),
-            serde_json::to_value(Some(QueuedCommands {
-                source_message_global_id: source_message_id,
-                commands: sweater::CommandsIterator::new(
-                    text,
-                    &self
-                        .sweater_transaction
-                        .sweater_config
-                        .supported_relations_kinds,
-                    &mut sweater::AliasesResolver {
-                        read_able_transaction: self.sweater_transaction,
-                        known_aliases: BTreeMap::new(),
-                    },
-                )
-                .collect::<Vec<_>>()?,
-                sent_to_cantors_messages_ids: vec![],
-            }))?,
+            commands,
         )?;
         Ok(())
     }
@@ -66,7 +77,7 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
             let queued_commands = serde_json::from_value::<QueuedCommands>(commands_json_value)?;
             if !queued_commands.commands.is_empty() {
                 for command in queued_commands.commands {
-                    self.sweater_transaction.execute_command(&command)?;
+                    command.execute(self.sweater_transaction)?;
                 }
                 self.sweater_transaction
                     .chest_transaction

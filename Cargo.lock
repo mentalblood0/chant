@@ -239,6 +239,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
+name = "erased-serde"
+version = "0.4.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2add8a07dd6a8d93ff627029c51de145e12686fbc36ecb298ac22e74cf02dec"
+dependencies = [
+ "serde",
+ "serde_core",
+ "typeid",
+]
+
+[[package]]
 name = "errno"
 version = "0.3.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -399,6 +410,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "inventory"
+version = "0.3.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4f0c30c76f2f4ccee3fe55a2435f691ca00c0e4bd87abe4f4a851b1d4dac39b"
+dependencies = [
+ "rustversion",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -434,9 +454,9 @@ checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
 
 [[package]]
 name = "libc"
-version = "0.2.184"
+version = "0.2.185"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48f5d2a454e16a5ea0f4ced81bd44e4cfc7bd3a507b61887c99fd3538b28e4af"
+checksum = "52ff2c0fe9bc6cb6b14a0592c2ff4fa9ceb83eea9db979b0487cd054946a2b8f"
 
 [[package]]
 name = "linux-raw-sys"
@@ -728,9 +748,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.37"
+version = "0.23.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "758025cb5fccfd3bc2fd74708fd4682be41d99e5dff73c377c0646c6012c73a4"
+checksum = "69f9466fb2c14ea04357e91413efb882e2a6d4a406e625449bc0a5d360d53a21"
 dependencies = [
  "log",
  "once_cell",
@@ -803,7 +823,7 @@ dependencies = [
 [[package]]
 name = "serde-saphyr"
 version = "0.0.23"
-source = "git+https://github.com/bourumir-wyngs/serde-saphyr#72c90d2df5e3f063e51e0446b6d9767e085fa785"
+source = "git+https://github.com/bourumir-wyngs/serde-saphyr#0802d2713b54cf444a554ce849b56400b6188012"
 dependencies = [
  "ahash",
  "annotate-snippets",
@@ -951,7 +971,7 @@ dependencies = [
 [[package]]
 name = "trove"
 version = "0.1.0"
-source = "git+https://github.com/mentalblood0/trove#29d301c845859e3e5f4691aa291cecfdb254854f"
+source = "git+https://github.com/mentalblood0/trove#b146aa0270f9d56928872454b20f93a775fd7145"
 dependencies = [
  "anyhow",
  "base64",
@@ -962,6 +982,36 @@ dependencies = [
  "serde",
  "serde_json",
  "uuid",
+]
+
+[[package]]
+name = "typeid"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc7d623258602320d5c55d1bc22793b57daff0ec7efc270ea7d55ce1d5f5471c"
+
+[[package]]
+name = "typetag"
+version = "0.2.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be2212c8a9b9bcfca32024de14998494cf9a5dfa59ea1b829de98bac374b86bf"
+dependencies = [
+ "erased-serde",
+ "inventory",
+ "once_cell",
+ "serde",
+ "typetag-impl",
+]
+
+[[package]]
+name = "typetag-impl"
+version = "0.2.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27a7a9b72ba121f6f1f6c3632b85604cac41aedb5ddc70accbebb6cac83de846"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -1354,7 +1404,7 @@ dependencies = [
 [[package]]
 name = "wool"
 version = "0.1.0"
-source = "git+https://github.com/mentalblood0/wool#7ada2815e7d7da54853d3548137c5c18975579a0"
+source = "git+https://github.com/mentalblood0/wool#8b0f193db3f3fa6798a4e9b4adea4b691e4cfe49"
 dependencies = [
  "anyhow",
  "fallible-iterator",
@@ -1363,6 +1413,7 @@ dependencies = [
  "serde",
  "serde_json",
  "trove",
+ "typetag",
 ]
 
 [[package]]
