@@ -1,13 +1,14 @@
 use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::sweater::{self, AliasesResolver};
+use crate::sweater;
 use crate::user::{Role, User};
+use wool::{aliases_resolver::AliasesResolver, reference::Reference, tag::Tag};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum Command {
     GetThesisByReference(trove::DocumentId),
-    GetThesesByTags(Vec<sweater::Tag>),
+    GetThesesByTags(Vec<Tag>),
     GetAllTags,
     GetSupportedRelationsKinds,
     AddOfferers(Vec<User>),
@@ -53,14 +54,17 @@ impl Command {
         }
     }
 
-    pub fn from_text(text: &String, aliases_resolver: &AliasesResolver) -> Result<Command> {
+    pub fn from_text(
+        text: &String,
+        aliases_resolver: &sweater::LocalAliasesResolver,
+    ) -> Result<Command> {
         let command_text_splitted = text.split(' ').collect::<Vec<_>>();
         Self::from_splitted_text(command_text_splitted, aliases_resolver)
     }
 
     pub fn from_splitted_text(
         command_text_splitted: Vec<&str>,
-        aliases_resolver: &AliasesResolver,
+        aliases_resolver: &sweater::LocalAliasesResolver,
     ) -> Result<Command> {
         let command_name = command_text_splitted
             .get(0)
@@ -76,7 +80,7 @@ impl Command {
             ("/reference", 1) => {
                 let argument = command_arguments[0];
                 Command::GetThesisByReference(aliases_resolver.get_thesis_id_by_reference(
-                    &sweater::Reference::new(argument).with_context(|| {
+                    &Reference::new(argument).with_context(|| {
                         anyhow!(
                             "Can not parse /reference command because argument {argument:?} is \
                              invalid reference"
@@ -89,7 +93,7 @@ impl Command {
             ("/tags", 1..) => Command::GetThesesByTags(
                 command_arguments
                     .iter()
-                    .map(|line| sweater::Tag(line.to_string()))
+                    .map(|line| Tag(line.to_string()))
                     .collect(),
             ),
             ("/add_offerers", 1..) => {

@@ -9,10 +9,12 @@ use crate::commands::Command;
 use crate::define_read_methods;
 use crate::read_transaction::ReadTransactionMethods;
 use crate::sweater;
-use crate::user::MessageGlobalId;
-use crate::user::QueuedCommands;
-use crate::user::Role;
-use crate::user::User;
+use crate::user::{MessageGlobalId, QueuedCommands, Role, User};
+use wool::{
+    content::Content,
+    graph_generator::{GraphGenerator, GraphGeneratorConfig},
+    thesis::Thesis,
+};
 
 pub struct WriteTransaction<'a, 'b, 'c, 'd, 'e> {
     pub sweater_transaction: &'a mut sweater::WriteTransaction<'b, 'c, 'd, 'e>,
@@ -36,13 +38,13 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
         let commands = serde_json::to_value(Some(QueuedCommands {
             source_message_global_id: source_message_id,
             commands: {
-                let mut aliases_resolver = sweater::AliasesResolver {
+                let mut aliases_resolver = sweater::LocalAliasesResolver {
                     read_able_transaction: self.sweater_transaction,
                     known_aliases: BTreeMap::new(),
                 };
                 let mut result = vec![];
                 for line in text.lines() {
-                    result.push(sweater::Command::parse(
+                    result.push(wool::command::Command::parse(
                         line,
                         &mut aliases_resolver,
                         &self
@@ -74,7 +76,7 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
             let queued_commands = serde_json::from_value::<QueuedCommands>(commands_json_value)?;
             if !queued_commands.commands.is_empty() {
                 for command in queued_commands.commands {
-                    command.execute(self.sweater_transaction)?;
+                    self.sweater_transaction.execute_command(&command)?;
                 }
                 self.sweater_transaction
                     .chest_transaction
@@ -99,10 +101,12 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
     pub fn execute_command(&mut self, command: &Command) -> Result<String> {
         match command {
             Command::GetThesisByReference(thesis_id) => Ok(
-                if let Some(thesis) = sweater::ReadTransactionMethods::get_thesis(
-                    self.sweater_transaction,
-                    thesis_id,
-                )? {
+                if let Some(thesis) =
+                    wool::read_transaction_methods::ReadTransactionMethods::get_thesis(
+                        self.sweater_transaction,
+                        thesis_id,
+                    )?
+                {
                     self.format_thesis(&thesis)?
                 } else {
                     "Not found".to_string()
@@ -110,9 +114,11 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
             ),
             Command::GetAllTags => {
                 let mut result = BTreeSet::new();
-                for tags in sweater::ReadTransactionMethods::iter_theses(self.sweater_transaction)?
-                    .map(|thesis| Ok(thesis.tags))
-                    .collect::<Vec<_>>()?
+                for tags in wool::read_transaction_methods::ReadTransactionMethods::iter_theses(
+                    self.sweater_transaction,
+                )?
+                .map(|thesis| Ok(thesis.tags))
+                .collect::<Vec<_>>()?
                 {
                     for tag in tags {
                         result.insert(tag);
@@ -133,8 +139,8 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
                 .map(|relation_kind| relation_kind.0)
                 .collect::<Vec<_>>()
                 .join(", ")),
-            Command::GetThesesByTags(tags) => {
-                Ok(sweater::ReadTransactionMethods::iter_theses_ids_by_tags(
+            Command::GetThesesByTags(tags) => Ok(
+                wool::read_transaction_methods::ReadTransactionMethods::iter_theses_ids_by_tags(
                     self.sweater_transaction,
                     &tags,
                     &vec![],
@@ -142,7 +148,7 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
                 )?
                 .map(|thesis_id| {
                     self.format_thesis(
-                        &sweater::ReadTransactionMethods::get_thesis(
+                        &wool::read_transaction_methods::ReadTransactionMethods::get_thesis(
                             self.sweater_transaction,
                             &thesis_id,
                         )?
@@ -153,8 +159,8 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
                     )
                 })
                 .collect::<Vec<_>>()?
-                .join("\n\n"))
-            }
+                .join("\n\n"),
+            ),
             Command::AddOfferers(users) => {
                 self.add_users(users)?;
                 Ok("Added".to_string())

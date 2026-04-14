@@ -4,6 +4,11 @@ use trove::path_segments;
 
 use crate::sweater;
 use crate::user::Role;
+use wool::{
+    content::Content,
+    graph_generator::{GraphGenerator, GraphGeneratorConfig},
+    thesis::Thesis,
+};
 
 pub struct ReadTransaction<'a> {
     pub sweater_transaction: &'a sweater::ReadTransaction<'a>,
@@ -33,8 +38,8 @@ macro_rules! define_read_methods {
         }
 
         fn get_graph_definition(&self) -> Result<String> {
-            Ok(sweater::GraphGenerator::new(
-                &sweater::GraphGeneratorConfig { wrap_width: 64 },
+            Ok(GraphGenerator::new(
+                &GraphGeneratorConfig { wrap_width: 64 },
                 self.sweater_transaction,
             )?
             .collect::<Vec<_>>()?
@@ -44,10 +49,12 @@ macro_rules! define_read_methods {
         fn format_thesis_id(&self, thesis_id: &trove::DocumentId) -> Result<String> {
             let thesis_id_string = thesis_id.to_string();
             Ok(
-                if let Some(alias) = &sweater::ReadTransactionMethods::get_alias_by_thesis_id(
-                    self.sweater_transaction,
-                    &thesis_id,
-                )? {
+                if let Some(alias) =
+                    &wool::read_transaction_methods::ReadTransactionMethods::get_alias_by_thesis_id(
+                        self.sweater_transaction,
+                        &thesis_id,
+                    )?
+                {
                     format!(
                         "[{}](https://t.me/grot_chant_bot?start=reference_{})",
                         alias.0, thesis_id_string
@@ -68,7 +75,7 @@ macro_rules! define_read_methods {
             )
         }
 
-        fn format_thesis(&self, thesis: &sweater::Thesis) -> Result<String> {
+        fn format_thesis(&self, thesis: &Thesis) -> Result<String> {
             let mut result = format!(
                 "id: `{}`",
                 telegram_escape::tg_escape(&thesis.id()?.to_string())
@@ -82,11 +89,10 @@ macro_rules! define_read_methods {
             result.push_str(&format!(
                 "\ncontent: {}",
                 telegram_escape::tg_escape(&match thesis.content {
-                    sweater::Content::Text(ref text) =>
-                        text.composed(
-                            |referenced_thesis_id| self.format_thesis_id(referenced_thesis_id)
-                        )?,
-                    sweater::Content::Relation(ref relation) => format!(
+                    Content::Text(ref text) => text.composed(
+                        |referenced_thesis_id| self.format_thesis_id(referenced_thesis_id)
+                    )?,
+                    Content::Relation(ref relation) => format!(
                         "{} {} {}",
                         self.format_thesis_id(&relation.from)?,
                         relation.kind.0,
@@ -109,7 +115,7 @@ macro_rules! define_read_methods {
             }
             let references_text = telegram_escape::tg_escape(
                 &fallible_iterator::convert(
-                    sweater::ReadTransactionMethods::where_referenced(
+                    wool::read_transaction_methods::ReadTransactionMethods::where_referenced(
                         self.sweater_transaction,
                         &thesis.id()?,
                     )?
@@ -133,7 +139,7 @@ pub trait ReadTransactionMethods<'a> {
     fn get_graph_definition(&self) -> Result<String>;
     fn format_thesis_id(&self, thesis_id: &trove::DocumentId) -> Result<String>;
     fn format_tag(&self, tag_text: &String) -> String;
-    fn format_thesis(&self, thesis: &sweater::Thesis) -> Result<String>;
+    fn format_thesis(&self, thesis: &Thesis) -> Result<String>;
 }
 
 impl<'a> ReadTransactionMethods<'a> for ReadTransaction<'a> {

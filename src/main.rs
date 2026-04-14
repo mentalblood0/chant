@@ -289,7 +289,7 @@ impl Chant {
                         .lock_all_and_write(|transaction| {
                             let command = commands::Command::from_text(
                                 message_text,
-                                &sweater::AliasesResolver {
+                                &sweater::LocalAliasesResolver {
                                     read_able_transaction: transaction.sweater_transaction,
                                     known_aliases: BTreeMap::new(),
                                 },
@@ -474,8 +474,9 @@ impl Chant {
                                     let approved = emoji.emoji == "👍";
                                     if approved {
                                         for command in approved_queued_commands.commands.iter() {
-                                            if let Err(commands_execution_error) =
-                                                command.execute(transaction.sweater_transaction)
+                                            if let Err(commands_execution_error) = transaction
+                                                .sweater_transaction
+                                                .execute_command(&command)
                                             {
                                                 commands_execution_error_option =
                                                     Some(commands_execution_error);

@@ -1,5 +1,3 @@
-use crate::sweater;
-
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Role {
@@ -16,7 +14,7 @@ pub struct MessageGlobalId {
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct QueuedCommands {
     pub source_message_global_id: MessageGlobalId,
-    pub commands: Vec<sweater::Command>,
+    pub commands: Vec<wool::command::Command>,
 
     #[serde(default)]
     pub sent_to_cantors_messages_ids: Vec<MessageGlobalId>,
