@@ -24,6 +24,8 @@ An Offerer can request execution of some storage-altering commands (see [wool re
 
 `/relations_kinds`
 
+`/commands_backup`
+
 Reference is either thesis identifier or thesis alias
 
 Basic concepts are described in [wool readme](https://github.com/mentalblood0/wool#basic-concepts)

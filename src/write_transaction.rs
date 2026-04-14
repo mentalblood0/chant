@@ -139,6 +139,15 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
                 .map(|relation_kind| relation_kind.0)
                 .collect::<Vec<_>>()
                 .join(", ")),
+            Command::GetCommandsBackup => Ok(fallible_iterator::convert(
+                wool::read_transaction_methods::ReadTransactionMethods::backup_to_commands(
+                    self.sweater_transaction,
+                )?
+                .iter()
+                .map(|command| command.to_parsable(self.sweater_transaction)),
+            )
+            .collect::<Vec<_>>()?
+            .join("\n")),
             Command::GetThesesByTags(tags) => Ok(
                 wool::read_transaction_methods::ReadTransactionMethods::iter_theses_ids_by_tags(
                     self.sweater_transaction,
