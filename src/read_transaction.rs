@@ -78,7 +78,7 @@ macro_rules! define_read_methods {
         fn format_thesis(&self, thesis: &Thesis) -> Result<String> {
             let mut result = format!(
                 "id: `{}`",
-                telegram_escape::tg_escape(&thesis.id()?.to_string())
+                telegram_escape::tg_escape(&thesis.id().to_string())
             );
             if let Some(ref alias) = thesis.alias {
                 result.push_str(&format!(
@@ -117,7 +117,7 @@ macro_rules! define_read_methods {
                 &fallible_iterator::convert(
                     wool::read_transaction_methods::ReadTransactionMethods::where_referenced(
                         self.sweater_transaction,
-                        &thesis.id()?,
+                        &thesis.id(),
                     )?
                     .into_iter()
                     .map(|thesis_id| self.format_thesis_id(&thesis_id)),
