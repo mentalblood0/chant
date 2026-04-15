@@ -65,7 +65,9 @@ impl Chant {
             transaction.add_users(&users_to_add)?;
             transaction.get_graph_definition()
         })?;
-        result.update_graph_file(&graph_definition)?;
+        if !result.config.graph_file_path.exists() {
+            result.update_graph_file(&graph_definition)?;
+        }
         Ok(result)
     }
 
