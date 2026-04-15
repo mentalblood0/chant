@@ -9,6 +9,7 @@ use wool::{aliases_resolver::AliasesResolver, reference::Reference, tag::Tag};
 pub enum Command {
     GetThesisByReference(trove::DocumentId),
     GetThesesByTags(Vec<Tag>),
+    GetThesesByWords(Vec<String>),
     GetAllTags,
     GetSupportedRelationsKinds,
     AddOfferers(Vec<User>),
@@ -28,6 +29,7 @@ impl Command {
                     tag.validated()?;
                 }
             }
+            Command::GetThesesByWords(_) => {}
             Command::GetAllTags => {}
             Command::GetSupportedRelationsKinds => {}
             Command::AddOfferers(_) => {}
@@ -40,6 +42,7 @@ impl Command {
         match (role, self) {
             (Role::Offerer, Command::GetThesisByReference(_)) => true,
             (Role::Offerer, Command::GetThesesByTags(_)) => true,
+            (Role::Offerer, Command::GetThesesByWords(_)) => true,
             (Role::Offerer, Command::GetAllTags) => true,
             (Role::Offerer, Command::GetSupportedRelationsKinds) => true,
             (Role::Offerer, Command::AddOfferers(_)) => false,
@@ -47,6 +50,7 @@ impl Command {
 
             (Role::Cantor, Command::GetThesisByReference(_)) => true,
             (Role::Cantor, Command::GetThesesByTags(_)) => true,
+            (Role::Cantor, Command::GetThesesByWords(_)) => true,
             (Role::Cantor, Command::GetAllTags) => true,
             (Role::Cantor, Command::GetSupportedRelationsKinds) => true,
             (Role::Cantor, Command::AddOfferers(_)) => true,
@@ -93,7 +97,13 @@ impl Command {
             ("/tags", 1..) => Command::GetThesesByTags(
                 command_arguments
                     .iter()
-                    .map(|line| Tag(line.to_string()))
+                    .map(|argument| Tag(argument.to_string()))
+                    .collect(),
+            ),
+            ("/words", 1..) => Command::GetThesesByWords(
+                command_arguments
+                    .iter()
+                    .map(|argument| argument.to_string())
                     .collect(),
             ),
             ("/add_offerers", 1..) => {

@@ -18,13 +18,16 @@ An Offerer can request execution of some storage-altering commands (see [wool re
 
 `/tags`
 
-`/tags one or more some tags to search by`
+`/tags one or more tags to search by`
+
+`/words one or more word to search by`
 
 `/graph`
 
 `/relations_kinds`
 
 `/commands_backup`
+
 
 Reference is either thesis identifier or thesis alias
 

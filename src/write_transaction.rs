@@ -13,6 +13,7 @@ use crate::user::{MessageGlobalId, QueuedCommands, Role, User};
 use wool::{
     content::Content,
     graph_generator::{GraphGenerator, GraphGeneratorConfig},
+    text::Entity,
     thesis::Thesis,
 };
 
@@ -143,6 +144,28 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
                 wool::read_transaction_methods::ReadTransactionMethods::iter_theses_ids_by_tags(
                     self.sweater_transaction,
                     &tags,
+                    &vec![],
+                    None,
+                )?
+                .map(|thesis_id| {
+                    self.format_thesis(
+                        &wool::read_transaction_methods::ReadTransactionMethods::get_thesis(
+                            self.sweater_transaction,
+                            &thesis_id,
+                        )?
+                        .ok_or(anyhow!(
+                            "Thesis with identifier {:?} not found",
+                            thesis_id.to_string()
+                        ))?,
+                    )
+                })
+                .collect::<Vec<_>>()?
+                .join("\n\n"),
+            ),
+            Command::GetThesesByWords(words) => Ok(
+                wool::read_transaction_methods::ReadTransactionMethods::iter_theses_ids_by_entities(
+                    self.sweater_transaction,
+                    &words.iter().map(|word| Entity::Word(word.clone())).collect(),
                     &vec![],
                     None,
                 )?
