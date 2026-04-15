@@ -283,6 +283,51 @@ impl Chant {
         Ok(())
     }
 
+    pub fn partition_and_reply_with_text(
+        &self,
+        reply_to: &frankenstein::types::Message,
+        text: String,
+    ) -> Result<()> {
+        for chunk in text.lines().fold(vec![String::new()], |mut chunks, line| {
+            let chunk_size = chunks.last().unwrap().len();
+            let line_with_newline = if chunks.last().unwrap().is_empty() {
+                line.to_string()
+            } else {
+                format!("\n{}", line)
+            };
+
+            if chunk_size + line_with_newline.len() <= 4096 {
+                let last = chunks.last_mut().unwrap();
+                if !last.is_empty() {
+                    last.push('\n');
+                }
+                last.push_str(line);
+            } else {
+                chunks.push(line.to_string());
+            }
+            chunks
+        }) {
+            self.bot.send_message(
+                &frankenstein::methods::SendMessageParams::builder()
+                    .parse_mode(frankenstein::ParseMode::MarkdownV2)
+                    .chat_id(reply_to.chat.id)
+                    .reply_parameters(
+                        frankenstein::types::ReplyParameters::builder()
+                            .message_id(reply_to.message_id)
+                            .build(),
+                    )
+                    .link_preview_options(
+                        frankenstein::types::LinkPreviewOptions::builder()
+                            .is_disabled(true)
+                            .build(),
+                    )
+                    .text(chunk)
+                    .build(),
+            )?;
+        }
+        Ok(())
+    }
+
     pub fn process_message_text(
         &mut self,
         message: &frankenstein::types::Message,
@@ -348,23 +393,7 @@ impl Chant {
                             "🤷",
                         )?;
                     } else {
-                        self.bot.send_message(
-                            &frankenstein::methods::SendMessageParams::builder()
-                                .parse_mode(frankenstein::ParseMode::MarkdownV2)
-                                .chat_id(message.chat.id)
-                                .reply_parameters(
-                                    frankenstein::types::ReplyParameters::builder()
-                                        .message_id(message.message_id)
-                                        .build(),
-                                )
-                                .link_preview_options(
-                                    frankenstein::types::LinkPreviewOptions::builder()
-                                        .is_disabled(true)
-                                        .build(),
-                                )
-                                .text(reply_text)
-                                .build(),
-                        )?;
+                        self.partition_and_reply_with_text(message, reply_text)?;
                     }
                 }
             }
