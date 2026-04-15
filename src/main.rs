@@ -4,6 +4,7 @@ pub mod user;
 pub mod write_transaction;
 
 use std::collections::BTreeMap;
+use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -44,6 +45,7 @@ pub struct ChantConfig {
     pub users: Vec<User>,
     pub limits: Limits,
     pub graph_file_path: PathBuf,
+    pub commands_backup_file_path: PathBuf,
 }
 
 pub struct Chant {
@@ -67,6 +69,23 @@ impl Chant {
         })?;
         if !result.config.graph_file_path.exists() {
             result.update_graph_file(&graph_definition)?;
+        }
+        if !result.config.commands_backup_file_path.exists() {
+            File::create(&result.config.commands_backup_file_path)?.write_all(
+                result
+                    .lock_all_writes_and_read(|transaction| {
+                        fallible_iterator::convert(
+                        wool::read_transaction_methods::ReadTransactionMethods::backup_to_commands(
+                            transaction.sweater_transaction,
+                        )?
+                        .iter()
+                        .map(|command| command.to_parsable(transaction.sweater_transaction)),
+                    )
+                    .collect::<Vec<_>>()
+                    })?
+                    .join("\n")
+                    .as_bytes(),
+            )?;
         }
         Ok(result)
     }
@@ -283,6 +302,20 @@ impl Chant {
                         )
                         .build(),
                 )?;
+            } else if message_text == "/commands_backup" {
+                self.bot.send_document(
+                    &frankenstein::methods::SendDocumentParams::builder()
+                        .chat_id(message.chat.id)
+                        .document(frankenstein::input_file::InputFile {
+                            path: self.config.commands_backup_file_path.clone(),
+                        })
+                        .reply_parameters(
+                            frankenstein::types::ReplyParameters::builder()
+                                .message_id(message.message_id)
+                                .build(),
+                        )
+                        .build(),
+                )?;
             } else {
                 if message_text.starts_with("/may") {
                     self.process_storage_altering_commands(message, message_text)?;
@@ -420,6 +453,8 @@ impl Chant {
                     for reaction_type in &reaction.new_reaction {
                         if let frankenstein::types::ReactionType::Emoji(emoji) = reaction_type {
                             if emoji.emoji == "👍" || emoji.emoji == "👎" {
+                                let commands_backup_file_path =
+                                    self.config.commands_backup_file_path.clone();
                                 let (
                                     approved,
                                     source_message_global_id,
@@ -485,6 +520,21 @@ impl Chant {
                                                 break;
                                             }
                                         }
+                                        File::open(&commands_backup_file_path)?.write_all(
+                                            fallible_iterator::convert(
+                                                approved_queued_commands.commands.iter().map(
+                                                    |command| {
+                                                        command.to_parsable(
+                                                            transaction.sweater_transaction,
+                                                        )
+                                                    },
+                                                ),
+                                            )
+                                            .map(|command_line| Ok(format!("\n{command_line}")))
+                                            .collect::<Vec<_>>()?
+                                            .join("")
+                                            .as_bytes(),
+                                        )?;
                                     }
                                     Ok((
                                         approved,

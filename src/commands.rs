@@ -11,7 +11,6 @@ pub enum Command {
     GetThesesByTags(Vec<Tag>),
     GetAllTags,
     GetSupportedRelationsKinds,
-    GetCommandsBackup,
     AddOfferers(Vec<User>),
     PromoteToCantor(trove::DocumentId),
 }
@@ -31,7 +30,6 @@ impl Command {
             }
             Command::GetAllTags => {}
             Command::GetSupportedRelationsKinds => {}
-            Command::GetCommandsBackup => {}
             Command::AddOfferers(_) => {}
             Command::PromoteToCantor(_) => {}
         }
@@ -44,7 +42,6 @@ impl Command {
             (Role::Offerer, Command::GetThesesByTags(_)) => true,
             (Role::Offerer, Command::GetAllTags) => true,
             (Role::Offerer, Command::GetSupportedRelationsKinds) => true,
-            (Role::Offerer, Command::GetCommandsBackup) => true,
             (Role::Offerer, Command::AddOfferers(_)) => false,
             (Role::Offerer, Command::PromoteToCantor(_)) => false,
 
@@ -52,7 +49,6 @@ impl Command {
             (Role::Cantor, Command::GetThesesByTags(_)) => true,
             (Role::Cantor, Command::GetAllTags) => true,
             (Role::Cantor, Command::GetSupportedRelationsKinds) => true,
-            (Role::Cantor, Command::GetCommandsBackup) => true,
             (Role::Cantor, Command::AddOfferers(_)) => true,
             (Role::Cantor, Command::PromoteToCantor(_)) => true,
         }
@@ -93,7 +89,6 @@ impl Command {
                 )?)
             }
             ("/relations_kinds", 0) => Command::GetSupportedRelationsKinds,
-            ("/commands_backup", 0) => Command::GetCommandsBackup,
             ("/tags", 0) => Command::GetAllTags,
             ("/tags", 1..) => Command::GetThesesByTags(
                 command_arguments
