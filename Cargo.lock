@@ -1354,7 +1354,7 @@ dependencies = [
 [[package]]
 name = "wool"
 version = "0.1.0"
-source = "git+https://github.com/mentalblood0/wool#ea5d4b82c2d39474297da7db7d7f7f06cc22ebaa"
+source = "git+https://github.com/mentalblood0/wool#374086a439cd6e62d81d221b96dc0db660dad9f1"
 dependencies = [
  "anyhow",
  "fallible-iterator",

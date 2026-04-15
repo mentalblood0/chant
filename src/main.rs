@@ -75,15 +75,16 @@ impl Chant {
                 result
                     .lock_all_writes_and_read(|transaction| {
                         fallible_iterator::convert(
-                        wool::read_transaction_methods::ReadTransactionMethods::backup_to_commands(
-                            transaction.sweater_transaction,
-                        )?
-                        .iter()
-                        .map(|command| command.to_parsable(transaction.sweater_transaction)),
-                    )
-                    .collect::<Vec<_>>()
+                            wool::read_transaction_methods::ReadTransactionMethods::backup_to_commands(
+                                transaction.sweater_transaction,
+                            )?
+                            .iter()
+                            .map(|command| command.to_parsable(transaction.sweater_transaction))
+                        )
+                        .map(|command_line| Ok(format!("{command_line}\n")))
+                        .collect::<Vec<_>>()
                     })?
-                    .join("\n")
+                    .join("")
                     .as_bytes(),
             )?;
         }
@@ -520,21 +521,25 @@ impl Chant {
                                                 break;
                                             }
                                         }
-                                        File::open(&commands_backup_file_path)?.write_all(
-                                            fallible_iterator::convert(
-                                                approved_queued_commands.commands.iter().map(
-                                                    |command| {
-                                                        command.to_parsable(
-                                                            transaction.sweater_transaction,
-                                                        )
-                                                    },
-                                                ),
-                                            )
-                                            .map(|command_line| Ok(format!("\n{command_line}")))
-                                            .collect::<Vec<_>>()?
-                                            .join("")
-                                            .as_bytes(),
-                                        )?;
+                                        std::fs::OpenOptions::new()
+                                            .append(true)
+                                            .create(true)
+                                            .open(&commands_backup_file_path)?
+                                            .write_all(
+                                                fallible_iterator::convert(
+                                                    approved_queued_commands.commands.iter().map(
+                                                        |command| {
+                                                            command.to_parsable(
+                                                                transaction.sweater_transaction,
+                                                            )
+                                                        },
+                                                    ),
+                                                )
+                                                .map(|command_line| Ok(format!("{command_line}\n")))
+                                                .collect::<Vec<_>>()?
+                                                .join("")
+                                                .as_bytes(),
+                                            )?;
                                     }
                                     Ok((
                                         approved,

@@ -8,6 +8,7 @@ limits:
       min: 32
       max: 4096
 graph_file_path: /tmp/chant/graph.svg
+commands_backup_file_path: /tmp/chant/commands_backup.txt
 sweater:
   supported_relations_kinds:
     - answers
