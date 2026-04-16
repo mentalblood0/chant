@@ -19,6 +19,7 @@ use wool::{
 
 pub struct WriteTransaction<'a, 'b, 'c, 'd, 'e> {
     pub sweater_transaction: &'a mut sweater::WriteTransaction<'b, 'c, 'd, 'e>,
+    pub target_bot_name_for_deeplinks_formatting: String,
 }
 
 impl<'a, 'b, 'c, 'd, 'e> ReadTransactionMethods<'a> for WriteTransaction<'a, 'b, 'c, 'd, 'e> {

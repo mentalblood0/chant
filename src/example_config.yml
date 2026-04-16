@@ -1,4 +1,5 @@
 token: insert your telegram bot token here
+target_bot_name_for_deeplinks_formatting: insert your bot tag without '@' prefix here
 users:
   - telegram_id: 810722109
     role: Cantor

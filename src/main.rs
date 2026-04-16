@@ -46,6 +46,7 @@ pub struct ChantConfig {
     pub limits: Limits,
     pub graph_file_path: PathBuf,
     pub commands_backup_file_path: PathBuf,
+    pub target_bot_name_for_deeplinks_formatting: String,
 }
 
 pub struct Chant {
@@ -99,6 +100,10 @@ impl Chant {
             .lock_all_and_write(|sweater_write_transaction| {
                 f(&mut WriteTransaction {
                     sweater_transaction: sweater_write_transaction,
+                    target_bot_name_for_deeplinks_formatting: self
+                        .config
+                        .target_bot_name_for_deeplinks_formatting
+                        .clone(),
                 })
             })
             .context("Can not lock chest and initiate write transaction")
@@ -112,6 +117,10 @@ impl Chant {
             .lock_all_writes_and_read(|sweater_read_transaction| {
                 f(ReadTransaction {
                     sweater_transaction: &sweater_read_transaction,
+                    target_bot_name_for_deeplinks_formatting: self
+                        .config
+                        .target_bot_name_for_deeplinks_formatting
+                        .clone(),
                 })
             })
             .context("Can not lock all write operations on chest and initiate read transaction")

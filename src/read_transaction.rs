@@ -12,6 +12,7 @@ use wool::{
 
 pub struct ReadTransaction<'a> {
     pub sweater_transaction: &'a sweater::ReadTransaction<'a>,
+    pub target_bot_name_for_deeplinks_formatting: String,
 }
 
 #[macro_export]
@@ -56,13 +57,15 @@ macro_rules! define_read_methods {
                     )?
                 {
                     format!(
-                        "[{}](https://t.me/grot_chant_bot?start=reference_{})",
-                        alias.0, thesis_id_string
+                        "[{}](https://t.me/{}?start=reference_{})",
+                        alias.0, self.target_bot_name_for_deeplinks_formatting, thesis_id_string
                     )
                 } else {
                     format!(
-                        "[{}](https://t.me/grot_chant_bot?start=reference_{})",
-                        thesis_id_string, thesis_id_string
+                        "[{}](https://t.me/{}?start=reference_{})",
+                        thesis_id_string,
+                        self.target_bot_name_for_deeplinks_formatting,
+                        thesis_id_string
                     )
                 },
             )
@@ -70,8 +73,8 @@ macro_rules! define_read_methods {
 
         fn format_tag(&self, tag_text: &String) -> String {
             format!(
-                "[{}](https://t.me/grot_chant_bot?start=tags_{})",
-                tag_text, tag_text
+                "[{}](https://t.me/{}?start=tags_{})",
+                tag_text, self.target_bot_name_for_deeplinks_formatting, tag_text
             )
         }
 
