@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
+use std::{thread, time};
 
 use anyhow::{anyhow, Context, Result};
 use fallible_iterator::FallibleIterator;
@@ -455,177 +456,214 @@ impl Chant {
                 .offset(offset)
                 .build();
 
-            let updates = self.bot.get_updates(&get_updates_params)?;
-
-            for update in updates.result {
-                // offset = update.update_id as i64 + 1;
-                // continue;
-                if let frankenstein::updates::UpdateContent::Message(message) = &update.content {
-                    if let Some(message_user_json_value) =
-                        self.lock_all_writes_and_read(|transaction| {
-                            transaction
-                                .sweater_transaction
-                                .chest_transaction
-                                .users_get(&message.chat.id.into(), &vec![])
-                        })?
-                    {
-                        let message_user = serde_json::from_value::<User>(message_user_json_value)?;
+            match self.bot.get_updates(&get_updates_params) {
+                Ok(updates) => {
+                    for update in updates.result {
+                        // offset = update.update_id as i64 + 1;
+                        // continue;
+                        if let frankenstein::updates::UpdateContent::Message(message) =
+                            &update.content
                         {
-                            let processing_result = self
-                                .process_message_text(message, &message_user.role)
-                                .context("Can not process message text");
-                            self.reply_with_error_text_if_error(message, processing_result)?;
-                        }
-                        {
-                            let processing_result = self
-                                .process_message_document(message)
-                                .context("Can not process message document");
-                            self.reply_with_error_text_if_error(message, processing_result)?;
-                        }
-                    } else {
-                        continue;
-                    }
-                }
-                if let frankenstein::updates::UpdateContent::MessageReaction(reaction) =
-                    &update.content
-                {
-                    for reaction_type in &reaction.new_reaction {
-                        if let frankenstein::types::ReactionType::Emoji(emoji) = reaction_type {
-                            if emoji.emoji == "👍" || emoji.emoji == "👎" {
-                                let commands_backup_file_path =
-                                    self.config.commands_backup_file_path.clone();
-                                let (
-                                    approved,
-                                    source_message_global_id,
-                                    sent_to_cantors_global_messages_ids,
-                                    commands_execution_error_option,
-                                    graph_definition,
-                                ) = self.lock_all_and_write(|transaction| {
-                                    let user_which_commands_were_approved = transaction
-                                        .sweater_transaction
-                                        .chest_transaction
-                                        .users_select(
-                                            &vec![(
-                                                trove::search_path_segments!(
-                                                    "commands_queue",
-                                                    "sent_to_cantors_messages_ids",
-                                                    ()
-                                                ),
-                                                serde_json::to_value(MessageGlobalId {
-                                                    chat_id: reaction.chat.id.into(),
-                                                    message_id: reaction.message_id,
-                                                })?,
-                                            )],
-                                            &vec![],
-                                            None,
-                                        )?
-                                        .next()?
-                                        .ok_or_else(|| {
-                                            anyhow!("Can not find user with source message")
-                                        })?;
-                                    let approved_queued_commands = serde_json::from_value::<
-                                        Option<user::QueuedCommands>,
-                                    >(
-                                        transaction
-                                            .sweater_transaction
-                                            .chest_transaction
-                                            .users_get(
-                                                &user_which_commands_were_approved,
-                                                &path_segments!("commands_queue",),
-                                            )?
-                                            .ok_or_else(|| anyhow!("Can not get commands queue"))?,
-                                    )
-                                    .context("Can not parse commands queue from JSON")?
-                                    .ok_or_else(|| {
-                                        anyhow!("Expected queued commands but there is none")
-                                    })?;
+                            if let Some(message_user_json_value) =
+                                self.lock_all_writes_and_read(|transaction| {
                                     transaction
                                         .sweater_transaction
                                         .chest_transaction
-                                        .users_remove(
-                                            &user_which_commands_were_approved,
-                                            &path_segments!("commands_queue"),
-                                        )?;
-                                    let mut commands_execution_error_option = None;
-                                    let approved = emoji.emoji == "👍";
-                                    if approved {
-                                        for command in approved_queued_commands.commands.iter() {
-                                            if let Err(commands_execution_error) = transaction
-                                                .sweater_transaction
-                                                .execute_command(&command)
-                                            {
-                                                commands_execution_error_option =
-                                                    Some(commands_execution_error);
-                                                break;
-                                            }
-                                        }
-                                        std::fs::OpenOptions::new()
-                                            .append(true)
-                                            .create(true)
-                                            .open(&commands_backup_file_path)?
-                                            .write_all(
-                                                fallible_iterator::convert(
-                                                    approved_queued_commands.commands.iter().map(
-                                                        |command| {
-                                                            command.to_parsable(
-                                                                transaction.sweater_transaction,
-                                                            )
-                                                        },
-                                                    ),
-                                                )
-                                                .map(|command_line| Ok(format!("{command_line}\n")))
-                                                .collect::<Vec<_>>()?
-                                                .join("")
-                                                .as_bytes(),
-                                            )?;
-                                    }
-                                    Ok((
-                                        approved,
-                                        approved_queued_commands.source_message_global_id,
-                                        approved_queued_commands.sent_to_cantors_messages_ids,
-                                        commands_execution_error_option,
-                                        transaction.get_graph_definition()?,
-                                    ))
-                                })?;
-                                if let Some(commands_execution_error) =
-                                    commands_execution_error_option
+                                        .users_get(&message.chat.id.into(), &vec![])
+                                })?
+                            {
+                                let message_user =
+                                    serde_json::from_value::<User>(message_user_json_value)?;
                                 {
-                                    self.set_reaction(&source_message_global_id, "🤔")?;
-                                    self.bot.send_message(
-                                        &frankenstein::methods::SendMessageParams::builder()
-                                            .chat_id(source_message_global_id.chat_id)
-                                            .reply_parameters(
-                                                frankenstein::types::ReplyParameters::builder()
-                                                    .message_id(source_message_global_id.message_id)
-                                                    .build(),
-                                            )
-                                            .text(format!(
-                                                "There was error executing commands: {}",
-                                                commands_execution_error
-                                            ))
-                                            .build(),
+                                    let processing_result = self
+                                        .process_message_text(message, &message_user.role)
+                                        .context("Can not process message text");
+                                    self.reply_with_error_text_if_error(
+                                        message,
+                                        processing_result,
                                     )?;
-                                } else {
-                                    self.set_reaction(&source_message_global_id, &emoji.emoji)?;
                                 }
-                                for sent_to_cantor_global_message_id in
-                                    sent_to_cantors_global_messages_ids
                                 {
-                                    self.bot.delete_message(
+                                    let processing_result = self
+                                        .process_message_document(message)
+                                        .context("Can not process message document");
+                                    self.reply_with_error_text_if_error(
+                                        message,
+                                        processing_result,
+                                    )?;
+                                }
+                            } else {
+                                continue;
+                            }
+                        }
+                        if let frankenstein::updates::UpdateContent::MessageReaction(reaction) =
+                            &update.content
+                        {
+                            for reaction_type in &reaction.new_reaction {
+                                if let frankenstein::types::ReactionType::Emoji(emoji) =
+                                    reaction_type
+                                {
+                                    if emoji.emoji == "👍" || emoji.emoji == "👎" {
+                                        let commands_backup_file_path =
+                                            self.config.commands_backup_file_path.clone();
+                                        let (
+                                            approved,
+                                            source_message_global_id,
+                                            sent_to_cantors_global_messages_ids,
+                                            commands_execution_error_option,
+                                            graph_definition,
+                                        ) = self.lock_all_and_write(|transaction| {
+                                            let user_which_commands_were_approved = transaction
+                                                .sweater_transaction
+                                                .chest_transaction
+                                                .users_select(
+                                                    &vec![(
+                                                        trove::search_path_segments!(
+                                                            "commands_queue",
+                                                            "sent_to_cantors_messages_ids",
+                                                            ()
+                                                        ),
+                                                        serde_json::to_value(MessageGlobalId {
+                                                            chat_id: reaction.chat.id.into(),
+                                                            message_id: reaction.message_id,
+                                                        })?,
+                                                    )],
+                                                    &vec![],
+                                                    None,
+                                                )?
+                                                .next()?
+                                                .ok_or_else(|| {
+                                                    anyhow!("Can not find user with source message")
+                                                })?;
+                                            let approved_queued_commands =
+                                                serde_json::from_value::<
+                                                    Option<user::QueuedCommands>,
+                                                >(
+                                                    transaction
+                                                        .sweater_transaction
+                                                        .chest_transaction
+                                                        .users_get(
+                                                            &user_which_commands_were_approved,
+                                                            &path_segments!("commands_queue",),
+                                                        )?
+                                                        .ok_or_else(|| {
+                                                            anyhow!("Can not get commands queue")
+                                                        })?,
+                                                )
+                                                .context("Can not parse commands queue from JSON")?
+                                                .ok_or_else(|| {
+                                                    anyhow!(
+                                                        "Expected queued commands but there is \
+                                                         none"
+                                                    )
+                                                })?;
+                                            transaction
+                                                .sweater_transaction
+                                                .chest_transaction
+                                                .users_remove(
+                                                    &user_which_commands_were_approved,
+                                                    &path_segments!("commands_queue"),
+                                                )?;
+                                            let mut commands_execution_error_option = None;
+                                            let approved = emoji.emoji == "👍";
+                                            if approved {
+                                                for command in
+                                                    approved_queued_commands.commands.iter()
+                                                {
+                                                    if let Err(commands_execution_error) =
+                                                        transaction
+                                                            .sweater_transaction
+                                                            .execute_command(&command)
+                                                    {
+                                                        commands_execution_error_option =
+                                                            Some(commands_execution_error);
+                                                        break;
+                                                    }
+                                                }
+                                                std::fs::OpenOptions::new()
+                                                    .append(true)
+                                                    .create(true)
+                                                    .open(&commands_backup_file_path)?
+                                                    .write_all(
+                                                        fallible_iterator::convert(
+                                                            approved_queued_commands
+                                                                .commands
+                                                                .iter()
+                                                                .map(|command| {
+                                                                    command.to_parsable(
+                                                                        transaction
+                                                                            .sweater_transaction,
+                                                                    )
+                                                                }),
+                                                        )
+                                                        .map(|command_line| {
+                                                            Ok(format!("{command_line}\n"))
+                                                        })
+                                                        .collect::<Vec<_>>()?
+                                                        .join("")
+                                                        .as_bytes(),
+                                                    )?;
+                                            }
+                                            Ok((
+                                                approved,
+                                                approved_queued_commands.source_message_global_id,
+                                                approved_queued_commands
+                                                    .sent_to_cantors_messages_ids,
+                                                commands_execution_error_option,
+                                                transaction.get_graph_definition()?,
+                                            ))
+                                        })?;
+                                        if let Some(commands_execution_error) =
+                                            commands_execution_error_option
+                                        {
+                                            self.set_reaction(&source_message_global_id, "🤔")?;
+                                            self.bot.send_message(
+                                                &frankenstein::methods::SendMessageParams::builder(
+                                                )
+                                                .chat_id(source_message_global_id.chat_id)
+                                                .reply_parameters(
+                                                    frankenstein::types::ReplyParameters::builder()
+                                                        .message_id(
+                                                            source_message_global_id.message_id,
+                                                        )
+                                                        .build(),
+                                                )
+                                                .text(format!(
+                                                    "There was error executing commands: {}",
+                                                    commands_execution_error
+                                                ))
+                                                .build(),
+                                            )?;
+                                        } else {
+                                            self.set_reaction(
+                                                &source_message_global_id,
+                                                &emoji.emoji,
+                                            )?;
+                                        }
+                                        for sent_to_cantor_global_message_id in
+                                            sent_to_cantors_global_messages_ids
+                                        {
+                                            self.bot.delete_message(
                                         &frankenstein::methods::DeleteMessageParams::builder()
                                             .chat_id(sent_to_cantor_global_message_id.chat_id)
                                             .message_id(sent_to_cantor_global_message_id.message_id)
                                             .build(),
                                     )?;
-                                }
-                                if approved {
-                                    self.update_graph_file(&graph_definition)?;
+                                        }
+                                        if approved {
+                                            self.update_graph_file(&graph_definition)?;
+                                        }
+                                    }
                                 }
                             }
                         }
+                        offset = update.update_id as i64 + 1;
                     }
                 }
-                offset = update.update_id as i64 + 1;
+                Err(error) => {
+                    println!("{error}");
+                    thread::sleep(time::Duration::from_secs(1));
+                }
             }
         }
     }
