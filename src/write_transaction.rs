@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use fallible_iterator::FallibleIterator;
 use trove::path_segments;
 
@@ -144,7 +144,7 @@ impl WriteTransaction<'_, '_, '_, '_, '_> {
             Command::GetThesesByTags(tags) => Ok(
                 wool::read_transaction_methods::ReadTransactionMethods::iter_theses_ids_by_tags(
                     self.sweater_transaction,
-                    &tags,
+                    tags,
                     &vec![],
                     None,
                 )?

@@ -71,7 +71,7 @@ macro_rules! define_read_methods {
             )
         }
 
-        fn format_tag(&self, tag_text: &String) -> String {
+        fn format_tag(&self, tag_text: &str) -> String {
             format!(
                 "[{}](https://t.me/{}?start=tags_{})",
                 tag_text, self.target_bot_name_for_deeplinks_formatting, tag_text
@@ -141,7 +141,7 @@ pub trait ReadTransactionMethods<'a> {
     fn get_cantors_user_ids(&self) -> Result<Vec<trove::DocumentId>>;
     fn get_graph_definition(&self) -> Result<String>;
     fn format_thesis_id(&self, thesis_id: &trove::DocumentId) -> Result<String>;
-    fn format_tag(&self, tag_text: &String) -> String;
+    fn format_tag(&self, tag_text: &str) -> String;
     fn format_thesis(&self, thesis: &Thesis) -> Result<String>;
 }
 

@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize};
 
 use crate::sweater;
@@ -59,7 +59,7 @@ impl Command {
     }
 
     pub fn from_text(
-        text: &String,
+        text: &str,
         aliases_resolver: &sweater::LocalAliasesResolver,
     ) -> Result<Command> {
         let command_text_splitted = text.split(' ').collect::<Vec<_>>();
@@ -71,7 +71,7 @@ impl Command {
         aliases_resolver: &sweater::LocalAliasesResolver,
     ) -> Result<Command> {
         let command_name = command_text_splitted
-            .get(0)
+            .first()
             .ok_or(anyhow!("Can not parse empty command"))?;
         let command_arguments = command_text_splitted[1..].to_vec();
         Ok(match (*command_name, command_arguments.len()) {
